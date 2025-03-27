@@ -8,22 +8,11 @@ bazel_dep(name = "platforms", version = "0.0.11")
 bazel_dep(name = "rules_cc", version = "0.0.14")
 bazel_dep(name = "rules_license", version = "1.0.0")
 
-#git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
-#git_repository(
-#    name = "aemu",
-#    commit = "b8d40d1bf9152f192eb216577e0e8e7982c0d832",
-#    remote = "https://android.googlesource.com/platform/hardware/google/aemu",
-#)
-bazel_dep(name = "aemu", version = "0.0.1")
-local_path_override(
-    module_name = "aemu",
-    path = "/mnt/build/aosp-aemu",
+git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+
+git_repository(
+    name = "aemu",
+    branch = "main",
+    #commit = "3c1ced8a369417db591eb7cd083af5bb2c317975",
+    remote = "https://github.com/jmacnak/aemu.git",
 )
-
-#git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
-
-#git_repository(
-#    name = "aemu",
-#    commit = "3c1ced8a369417db591eb7cd083af5bb2c317975",
-#    remote = "https://android.googlesource.com/platform/hardware/google/aemu",
-#)
