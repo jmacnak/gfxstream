@@ -358,7 +358,8 @@ endfunction()
         target_link_libraries(
             Vulkan_unittests
             PUBLIC
-            "-framework AppKit")
+            "-framework AppKit"
+            "-framework OpenGL")
     elseif (QNX)
         target_compile_definitions(Vulkan_unittests PRIVATE -DVK_USE_PLATFORM_SCREEN_QNX)
     elseif (UNIX)
