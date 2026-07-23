@@ -54,7 +54,7 @@ PostWorkerGl::PostWorkerGl(bool mainThreadPostingOnly, FrameBuffer* fb, Composit
 }
 
 std::shared_future<void> PostWorkerGl::postImpl(
-    ColorBuffer* cb, const std::optional<std::array<float, 16>>& colorTransform) {
+    IColorBuffer* cb, const std::optional<std::array<float, 16>>& colorTransform) {
     if (!mContextBound || m_mainThreadPostingOnly) {
         // This might happen on headless mode
         // Also if posting on main thread, the context binding can get polluted easily, which
@@ -130,7 +130,7 @@ std::shared_future<void> PostWorkerGl::postImpl(
                     continue;
                 }
 
-                ColorBuffer* currentCb =
+                IColorBuffer* currentCb =
                     currentDisplayId == 0
                         ? cb
                         : mFb->findColorBuffer(currentDisplayColorBufferHandle).get();
@@ -204,7 +204,7 @@ std::shared_future<void> PostWorkerGl::postImpl(
 }
 
 DisplayGl::PostLayer PostWorkerGl::postWithOverlay(
-    ColorBuffer* cb, const std::optional<std::array<float, 16>>& colorTransform) {
+    IColorBuffer* cb, const std::optional<std::array<float, 16>>& colorTransform) {
     float dpr = mFb->getDpr();
     int windowWidth = mFb->windowWidth();
     int windowHeight = mFb->windowHeight();

@@ -28,7 +28,9 @@
 #include "readback_worker.h"
 
 namespace gfxstream {
-class ColorBuffer;
+namespace host {
+class IColorBuffer;
+}  // namespace host
 }  // namespace gfxstream
 
 namespace gfxstream {
@@ -59,11 +61,8 @@ class ReadbackWorkerGl : public ReadbackWorker {
     // |readbackBgra|: Whether to force the readback format as GL_BGRA_EXT,
     // so that we get (depending on driver quality, heh) a gpu conversion of the
     // readback image that is suitable for webrtc, which expects formats like that.
-    DoNextReadbackResult doNextReadback(uint32_t displayId,
-                                        ColorBuffer* cb,
-                                        void* fbImage,
-                                        bool repaint,
-                                        bool readbackBgra) override;
+    DoNextReadbackResult doNextReadback(uint32_t displayId, IColorBuffer* cb, void* fbImage,
+                                        bool repaint, bool readbackBgra) override;
 
     // getPixels(): Run this on a separate GL thread. This retrieves the
     // latest framebuffer that has been posted and read with doNextReadback.

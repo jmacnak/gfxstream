@@ -61,7 +61,7 @@ std::unique_ptr<EmulatedEglWindowSurface> EmulatedEglWindowSurface::create(
     return surface;
 }
 
-void EmulatedEglWindowSurface::setColorBuffer(ColorBufferPtr p_colorBuffer) {
+void EmulatedEglWindowSurface::setColorBuffer(IColorBufferRef p_colorBuffer) {
     mAttachedColorBuffer = p_colorBuffer;
     if (!p_colorBuffer) return;
 
@@ -131,7 +131,11 @@ bool EmulatedEglWindowSurface::flushColorBuffer() {
         }
     }
 
-    mAttachedColorBuffer->glOpBlitFromCurrentReadBuffer();
+    mAttachedColorBuffer->touch();
+    auto cbGl = mAttachedColorBuffer->getColorBufferGl();
+    if (cbGl) {
+        cbGl->blitFromCurrentReadBuffer();
+    }
 
     if (needToSet) {
         // restore current context/surface
@@ -224,10 +228,9 @@ void EmulatedEglWindowSurface::onSave(gfxstream::Stream* stream) const {
 }
 
 std::unique_ptr<EmulatedEglWindowSurface> EmulatedEglWindowSurface::onLoad(
-        gfxstream::Stream* stream,
-        EGLDisplay display,
-        const ColorBufferMap& colorBuffers,
-        const EmulatedEglContextMap& contexts) {
+    gfxstream::Stream* stream, EGLDisplay display,
+    const std::function<IColorBufferRef(uint32_t)>& colorBufferLookup,
+    const EmulatedEglContextMap& contexts) {
     HandleType hndl = stream->getBe32();
     HandleType colorBufferHndl = stream->getBe32();
     HandleType readCtx = stream->getBe32();
@@ -244,9 +247,8 @@ std::unique_ptr<EmulatedEglWindowSurface> EmulatedEglWindowSurface::onLoad(
     assert(surface);
     // fb is already locked by its caller
     if (colorBufferHndl) {
-        const auto* colorBufferRef = gfxstream::base::find(colorBuffers, colorBufferHndl);
-        assert(colorBufferRef);
-        surface->mAttachedColorBuffer = colorBufferRef->cb;
+        surface->mAttachedColorBuffer = colorBufferLookup(colorBufferHndl);
+        assert(surface->mAttachedColorBuffer);
     }
     surface->mReadContext = gfxstream::base::findOrDefault(contexts, readCtx);
     surface->mDrawContext = gfxstream::base::findOrDefault(contexts, drawCtx);

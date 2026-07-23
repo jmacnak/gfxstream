@@ -24,6 +24,7 @@
 
 #include "framework_formats.h"
 #include "gfxstream/host/borrowed_image.h"
+#include "gfxstream/host/color_buffer_interface.h"
 #include "gfxstream/host/external_object_manager.h"
 #include "gfxstream/host/gfxstream_format.h"
 #include "handle.h"
@@ -51,42 +52,37 @@ class VkEmulation;
 namespace gfxstream {
 namespace host {
 
-class ColorBuffer : public LazySnapshotObj<ColorBuffer> {
+class ColorBuffer : public IColorBuffer, public LazySnapshotObj<ColorBuffer> {
    public:
     static std::shared_ptr<ColorBuffer> create(gl::EmulationGl* emulationGl,
-                                               vk::VkEmulation* emulationVk,
-                                               uint32_t width,
-                                               uint32_t height,
-                                               GfxstreamFormat format,
-                                               HandleType handle,
-                                               Stream* stream = nullptr);
+                                               vk::VkEmulation* emulationVk, uint32_t width,
+                                               uint32_t height, GfxstreamFormat format,
+                                               HandleType handle, Stream* stream = nullptr);
 
     static std::shared_ptr<ColorBuffer> onLoad(gl::EmulationGl* emulationGl,
-                                               vk::VkEmulation* emulationVk,
-                                               Stream* stream);
+                                               vk::VkEmulation* emulationVk, Stream* stream);
     void onSave(Stream* stream);
     void restore();
+    void touch() override;
 
-    HandleType getHndl() const;
-    uint32_t getWidth() const;
-    uint32_t getHeight() const;
+    gl::ColorBufferGl* getColorBufferGl() override;
+    vk::ColorBufferVk* getColorBufferVk() override;
+
+    HandleType getHndl() const override;
+    uint32_t getWidth() const override;
+    uint32_t getHeight() const override;
     GfxstreamFormat getFormat() const;
 
-    void readToBytes(int x, int y, int width, int height,
-                     GfxstreamFormat pixelsFormat,
+    void readToBytes(int x, int y, int width, int height, GfxstreamFormat pixelsFormat,
                      void* outPixels, uint64_t outPixelsSize);
     void readToBytesScaled(int pixelsWidth, int pixelsHeight, int pixelsRotation, const Rect& rect,
                            GfxstreamFormat pixelsFormat, void* outPixels,
                            const std::optional<std::array<float, 16>>& colorTransform);
-    void readYuvToBytes(int x, int y, int width, int height, void* outPixels, uint32_t outPixelsSize);
+    void readYuvToBytes(int x, int y, int width, int height, void* outPixels,
+                        uint32_t outPixelsSize);
 
-    bool updateFromBytes(int x,
-                         int y,
-                         int width,
-                         int height,
-                         GfxstreamFormat pixelsFormat,
-                         const void* pixels,
-                         void* metadata = nullptr);
+    bool updateFromBytes(int x, int y, int width, int height, GfxstreamFormat pixelsFormat,
+                         const void* pixels, void* metadata = nullptr);
     bool updateGlFromBytes(const void* bytes, std::size_t bytesSize);
 
     enum class UsedApi {
@@ -117,7 +113,7 @@ class ColorBuffer : public LazySnapshotObj<ColorBuffer> {
                                       GLuint* textures);
     bool glOpIsFastBlitSupported() const;
     bool glOpPostLayer(const ComposeLayer& l, int frameWidth, int frameHeight,
-        const std::optional<std::array<float, 16>>& colorTransform);
+                       const std::optional<std::array<float, 16>>& colorTransform);
     bool glOpPostViewportScaledWithOverlay(
         float rotation, float dx, float dy, float scaleX, float scaleY,
         const std::optional<std::array<float, 16>>& colorTransform);
@@ -130,24 +126,9 @@ class ColorBuffer : public LazySnapshotObj<ColorBuffer> {
     std::unique_ptr<Impl> mImpl;
 };
 
-typedef std::shared_ptr<ColorBuffer> ColorBufferPtr;
+using ColorBufferPtr = std::shared_ptr<ColorBuffer>;
 
-struct ColorBufferRef {
-    ColorBufferPtr cb;
-    uint32_t refcount;  // number of client-side references
-
-    // Tracks whether opened at least once. In O+,
-    // color buffers can be created/closed immediately,
-    // but then registered (opened) afterwards.
-    bool opened;
-
-    // Tracks the time when this buffer got a close request while not being
-    // opened yet.
-    uint64_t closedTs;
-};
-
-typedef std::unordered_map<HandleType, ColorBufferRef> ColorBufferMap;
-typedef std::unordered_multiset<HandleType> ColorBufferSet;
+using ColorBufferSet = std::unordered_multiset<HandleType>;
 
 }  // namespace host
 }  // namespace gfxstream

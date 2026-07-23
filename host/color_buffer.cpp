@@ -45,16 +45,11 @@ bool shouldAttemptExternalMemorySharing(GfxstreamFormat format) {
 
 class ColorBuffer::Impl : public LazySnapshotObj<ColorBuffer::Impl> {
    public:
-    static std::unique_ptr<Impl> create(gl::EmulationGl* emulationGl,
-                                        vk::VkEmulation* emulationVk,
-                                        uint32_t width,
-                                        uint32_t height,
-                                        GfxstreamFormat format,
-                                        HandleType handle,
-                                        gfxstream::Stream* stream = nullptr);
+    static std::unique_ptr<Impl> create(gl::EmulationGl* emulationGl, vk::VkEmulation* emulationVk,
+                                        uint32_t width, uint32_t height, GfxstreamFormat format,
+                                        HandleType handle, gfxstream::Stream* stream = nullptr);
 
-    static std::unique_ptr<Impl> onLoad(gl::EmulationGl* emulationGl,
-                                        vk::VkEmulation* emulationVk,
+    static std::unique_ptr<Impl> onLoad(gl::EmulationGl* emulationGl, vk::VkEmulation* emulationVk,
                                         gfxstream::Stream* stream);
 
     void onSave(gfxstream::Stream* stream);
@@ -87,6 +82,16 @@ class ColorBuffer::Impl : public LazySnapshotObj<ColorBuffer::Impl> {
     bool invalidateForVk();
 
     std::optional<BlobDescriptorInfo> exportBlob();
+
+    gl::ColorBufferGl* getColorBufferGl() const {
+#if GFXSTREAM_ENABLE_HOST_GLES
+        return mColorBufferGl.get();
+#else
+        return nullptr;
+#endif
+    }
+
+    vk::ColorBufferVk* getColorBufferVk() const { return mColorBufferVk.get(); }
 
 #if GFXSTREAM_ENABLE_HOST_GLES
     bool canUseGlOps();
@@ -128,10 +133,7 @@ class ColorBuffer::Impl : public LazySnapshotObj<ColorBuffer::Impl> {
 };
 
 ColorBuffer::Impl::Impl(HandleType handle, uint32_t width, uint32_t height, GfxstreamFormat format)
-    : mHandle(handle),
-      mWidth(width),
-      mHeight(height),
-      mFormat(format) {}
+    : mHandle(handle), mWidth(width), mHeight(height), mFormat(format) {}
 
 /*static*/
 std::unique_ptr<ColorBuffer::Impl> ColorBuffer::Impl::create(
@@ -183,15 +185,14 @@ std::unique_ptr<ColorBuffer::Impl> ColorBuffer::Impl::create(
 #if GFXSTREAM_ENABLE_HOST_GLES
     bool vkSnapshotEnabled = emulationVk && emulationVk->getFeatures().VulkanSnapshots.enabled();
 
-    if ((!stream || vkSnapshotEnabled) && colorBuffer->mColorBufferGl && colorBuffer->mColorBufferVk &&
-        shouldAttemptExternalMemorySharing(format)) {
+    if ((!stream || vkSnapshotEnabled) && colorBuffer->mColorBufferGl &&
+        colorBuffer->mColorBufferVk && shouldAttemptExternalMemorySharing(format)) {
         colorBuffer->touch();
         auto memoryExport = emulationVk->exportColorBufferMemory(handle);
         if (memoryExport) {
             if (colorBuffer->mColorBufferGl->importMemory(
-                    memoryExport->handleInfo.toManagedDescriptor(),
-                    memoryExport->size, memoryExport->dedicatedAllocation,
-                    memoryExport->linearTiling)) {
+                    memoryExport->handleInfo.toManagedDescriptor(), memoryExport->size,
+                    memoryExport->dedicatedAllocation, memoryExport->linearTiling)) {
                 colorBuffer->mGlAndVkAreSharingExternalMemory = true;
             } else {
                 GFXSTREAM_ERROR("Failed to import memory to ColorBufferGl:%d", handle);
@@ -219,8 +220,8 @@ std::unique_ptr<ColorBuffer::Impl> ColorBuffer::Impl::onLoad(gl::EmulationGl* em
     const auto height = static_cast<uint32_t>(stream->getBe32());
     const auto format = static_cast<GfxstreamFormat>(stream->getBe32());
 
-    std::unique_ptr<Impl> colorBuffer = Impl::create(emulationGl, emulationVk, width, height,
-                                                     format, handle, stream);
+    std::unique_ptr<Impl> colorBuffer =
+        Impl::create(emulationGl, emulationVk, width, height, format, handle, stream);
 
     return colorBuffer;
 }
@@ -251,14 +252,9 @@ void ColorBuffer::Impl::restore() {
 #endif
 }
 
-void ColorBuffer::Impl::readToBytes(
-        int x,
-        int y,
-        int width,
-        int height,
-        GfxstreamFormat pixelsFormat,
-        void* outPixels,
-        uint64_t outPixelsSize) {
+void ColorBuffer::Impl::readToBytes(int x, int y, int width, int height,
+                                    GfxstreamFormat pixelsFormat, void* outPixels,
+                                    uint64_t outPixelsSize) {
     touch();
 
 #if GFXSTREAM_ENABLE_HOST_GLES
@@ -283,14 +279,15 @@ void ColorBuffer::Impl::readToBytesScaled(
 
 #if GFXSTREAM_ENABLE_HOST_GLES
     if (mColorBufferGl) {
-        mColorBufferGl->readPixelsScaled(pixelsWidth, pixelsHeight, pixelsRotation,
-                                         rect, pixelsFormat, outPixels, colorTransform);
+        mColorBufferGl->readPixelsScaled(pixelsWidth, pixelsHeight, pixelsRotation, rect,
+                                         pixelsFormat, outPixels, colorTransform);
         return;
     }
 #endif
 
     if (mColorBufferVk) {
-        mColorBufferVk->readPixelsScaled(pixelsWidth, pixelsHeight, pixelsRotation, rect, pixelsFormat, outPixels, colorTransform);
+        mColorBufferVk->readPixelsScaled(pixelsWidth, pixelsHeight, pixelsRotation, rect,
+                                         pixelsFormat, outPixels, colorTransform);
         return;
     }
 
@@ -316,8 +313,9 @@ void ColorBuffer::Impl::readYuvToBytes(int x, int y, int width, int height, void
     GFXSTREAM_FATAL("%s: No ColorBuffer impl", __func__);
 }
 
-bool ColorBuffer::Impl::updateFromBytes(int x, int y, int width, int height, GfxstreamFormat pixelsFormat,
-                                        const void* pixels, void* metadata) {
+bool ColorBuffer::Impl::updateFromBytes(int x, int y, int width, int height,
+                                        GfxstreamFormat pixelsFormat, const void* pixels,
+                                        void* metadata) {
     touch();
 
 #if GFXSTREAM_ENABLE_HOST_GLES
@@ -513,9 +511,7 @@ std::optional<BlobDescriptorInfo> ColorBuffer::Impl::exportBlob() {
 }
 
 #if GFXSTREAM_ENABLE_HOST_GLES
-bool ColorBuffer::Impl::canUseGlOps() {
-    return (mColorBufferGl != nullptr);
-}
+bool ColorBuffer::Impl::canUseGlOps() { return (mColorBufferGl != nullptr); }
 
 bool ColorBuffer::Impl::glOpBlitFromCurrentReadBuffer() {
     if (!mColorBufferGl) {
@@ -618,7 +614,7 @@ bool ColorBuffer::Impl::glOpIsFastBlitSupported() const {
 }
 
 bool ColorBuffer::Impl::glOpPostLayer(const ComposeLayer& l, int frameWidth, int frameHeight,
-        const std::optional<std::array<float, 16>>& colorTransform) {
+                                      const std::optional<std::array<float, 16>>& colorTransform) {
     if (!mColorBufferGl) {
         GFXSTREAM_ERROR("%s: ColorBufferGl not available", __func__);
         return false;
@@ -645,16 +641,13 @@ bool ColorBuffer::Impl::glOpPostViewportScaledWithOverlay(
 
 /*static*/
 std::shared_ptr<ColorBuffer> ColorBuffer::create(gl::EmulationGl* emulationGl,
-                                                 vk::VkEmulation* emulationVk,
-                                                 uint32_t width,
-                                                 uint32_t height,
-                                                 GfxstreamFormat format,
-                                                 HandleType handle,
-                                                 gfxstream::Stream* stream) {
+                                                 vk::VkEmulation* emulationVk, uint32_t width,
+                                                 uint32_t height, GfxstreamFormat format,
+                                                 HandleType handle, gfxstream::Stream* stream) {
     std::shared_ptr<ColorBuffer> colorbuffer(new ColorBuffer());
 
-    colorbuffer->mImpl = ColorBuffer::Impl::create(emulationGl, emulationVk, width, height, format,
-                                                   handle, stream);
+    colorbuffer->mImpl =
+        ColorBuffer::Impl::create(emulationGl, emulationVk, width, height, format, handle, stream);
     if (!colorbuffer->mImpl) {
         return nullptr;
     }
@@ -681,7 +674,13 @@ void ColorBuffer::onSave(gfxstream::Stream* stream) { mImpl->onSave(stream); }
 
 void ColorBuffer::restore() { mImpl->touch(); }
 
+void ColorBuffer::touch() { mImpl->touch(); }
+
 HandleType ColorBuffer::getHndl() const { return mImpl->getHndl(); }
+
+gl::ColorBufferGl* ColorBuffer::getColorBufferGl() { return mImpl->getColorBufferGl(); }
+
+vk::ColorBufferVk* ColorBuffer::getColorBufferVk() { return mImpl->getColorBufferVk(); }
 
 uint32_t ColorBuffer::getWidth() const { return mImpl->getWidth(); }
 
@@ -706,8 +705,7 @@ void ColorBuffer::readYuvToBytes(int x, int y, int width, int height, void* outP
     mImpl->readYuvToBytes(x, y, width, height, outPixels, outPixelsSize);
 }
 
-bool ColorBuffer::updateFromBytes(int x, int y, int width, int height,
-                                  GfxstreamFormat pixelsFormat,
+bool ColorBuffer::updateFromBytes(int x, int y, int width, int height, GfxstreamFormat pixelsFormat,
                                   const void* pixels, void* metadata) {
     return mImpl->updateFromBytes(x, y, width, height, pixelsFormat, pixels, metadata);
 }
@@ -769,7 +767,7 @@ bool ColorBuffer::glOpSwapYuvTexturesAndUpdate(GLenum format, GLenum type,
 bool ColorBuffer::glOpIsFastBlitSupported() const { return mImpl->glOpIsFastBlitSupported(); }
 
 bool ColorBuffer::glOpPostLayer(const ComposeLayer& l, int frameWidth, int frameHeight,
-                            const std::optional<std::array<float, 16>>& colorTransform) {
+                                const std::optional<std::array<float, 16>>& colorTransform) {
     return mImpl->glOpPostLayer(l, frameWidth, frameHeight, colorTransform);
 }
 

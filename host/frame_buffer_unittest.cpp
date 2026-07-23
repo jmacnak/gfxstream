@@ -516,7 +516,8 @@ TEST_F(FrameBufferTest, SnapshotSingleColorBuffer) {
 // bug: 111360779
 // Tests that the ColorBuffer is successfully updated even if a reformat happens
 // on restore; the reformat may mess up the texture restore logic.
-// In ColorBuffer::subUpdate, this test is known to fail if touch() is moved after the reformat.
+// In ColorBuffer::subUpdate, this test is known to fail if touch() is moved after the
+// reformat.
 TEST_F(FrameBufferTest, SnapshotColorBufferSubUpdateRestore) {
     HandleType handle =
         mFb->createColorBuffer(mWidth, mHeight, GfxstreamFormat::R8G8B8A8_UNORM);
@@ -741,7 +742,8 @@ TEST_F(FrameBufferTest, CreateColorBufferBGRA) {
 }
 
 // Test ColorBuffer with GL_RGBA, but read back as GL_BGRA, so that R/B are switched.
-// TODO: This doesn't work on NVIDIA EGL, it issues GL_INVALID_OPERATION if the format doesn't match.
+// TODO: This doesn't work on NVIDIA EGL, it issues GL_INVALID_OPERATION if the format doesn't
+// match.
 TEST_F(FrameBufferTest, DISABLED_ReadColorBufferSwitchRedBlue) {
     HandleType handle =
         mFb->createColorBuffer(mWidth, mHeight, GfxstreamFormat::R8G8B8A8_UNORM);

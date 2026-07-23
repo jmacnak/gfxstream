@@ -19,14 +19,15 @@
 #include <EGL/egl.h>
 #include <GLES/gl.h>
 
+#include <functional>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
 
-#include "color_buffer.h"
-#include "handle.h"
+#include "gfxstream/host/color_buffer_interface.h"
 #include "gl/color_buffer_gl.h"
 #include "gl/emulated_egl_context.h"
+#include "handle.h"
 
 namespace gfxstream {
 namespace host {
@@ -60,12 +61,10 @@ class EmulatedEglWindowSurface {
     //
     // IMPORTANT: This automatically resizes the Pbuffer's to the ColorBuffer's
     // dimensions. Potentially losing pixel values in the process.
-    void setColorBuffer(ColorBufferPtr p_colorBuffer);
+    void setColorBuffer(IColorBufferRef p_colorBuffer);
 
     // Retrieves a pointer to the attached color buffer.
-    ColorBuffer* getAttachedColorBuffer() const {
-        return mAttachedColorBuffer.get();
-    }
+    IColorBuffer* getAttachedColorBuffer() const { return mAttachedColorBuffer.get(); }
 
     // Copy the Pbuffer's pixels to the attached color buffer.
     // Returns true on success, or false on error (e.g. if there is no
@@ -99,10 +98,9 @@ class EmulatedEglWindowSurface {
 
     void onSave(gfxstream::Stream* stream) const;
     static std::unique_ptr<EmulatedEglWindowSurface> onLoad(
-      gfxstream::Stream* stream,
-      EGLDisplay display,
-      const ColorBufferMap& colorBuffers,
-      const EmulatedEglContextMap& contexts);
+        gfxstream::Stream* stream, EGLDisplay display,
+        const std::function<IColorBufferRef(uint32_t)>& colorBufferLookup,
+        const EmulatedEglContextMap& contexts);
 
     HandleType getHndl() const;
 
@@ -114,7 +112,7 @@ class EmulatedEglWindowSurface {
     bool resize(unsigned int p_width, unsigned int p_height);
 
     EGLSurface mSurface = EGL_NO_SURFACE;
-    ColorBufferPtr mAttachedColorBuffer;
+    IColorBufferRef mAttachedColorBuffer;
     EmulatedEglContextPtr mReadContext;
     EmulatedEglContextPtr mDrawContext;
     GLuint mWidth = 0;
