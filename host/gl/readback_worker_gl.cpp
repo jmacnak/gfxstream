@@ -17,11 +17,11 @@
 
 #include <string.h>
 
-#include "color_buffer.h"
-#include "context_helper.h"
 #include "OpenGLESDispatch/DispatchTables.h"
 #include "OpenGLESDispatch/EGLDispatch.h"
 #include "OpenGLESDispatch/GLESv2Dispatch.h"
+#include "color_buffer.h"
+#include "context_helper.h"
 #include "gfxstream/common/logging.h"
 #include "gl/color_buffer_gl.h"
 
@@ -87,12 +87,10 @@ void ReadbackWorkerGl::deinitReadbackForDisplay(uint32_t displayId) {
     mTrackedDisplays.erase(it);
 }
 
-ReadbackWorkerGl::DoNextReadbackResult
-ReadbackWorkerGl::doNextReadback(uint32_t displayId,
-                                 ColorBuffer* cb,
-                                 void* fbImage,
-                                 bool repaint,
-                                 bool readbackBgra) {
+ReadbackWorkerGl::DoNextReadbackResult ReadbackWorkerGl::doNextReadback(uint32_t displayId,
+                                                                        IColorBuffer* cb,
+                                                                        void* fbImage, bool repaint,
+                                                                        bool readbackBgra) {
     // if |repaint|, make sure that the current frame is immediately sent down
     // the pipeline and made available to the consumer by priming async
     // readback; doing 4 consecutive reads in a row, which should be enough to
@@ -161,7 +159,11 @@ ReadbackWorkerGl::doNextReadback(uint32_t displayId,
         r.m_readbackCount++;
         r.mPrevReadPixelsIndex = readAt;
 
-        cb->glOpReadbackAsync(r.mBuffers[readAt], readbackBgra);
+        cb->touch();
+        auto cbGl = cb->getColorBufferGl();
+        if (cbGl) {
+            cbGl->readbackAsync(r.mBuffers[readAt], readbackBgra);
+        }
 
         // It's possible to post callback before any of the async readbacks
         // have written any data yet, which results in a black frame.  Safer

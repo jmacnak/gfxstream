@@ -849,10 +849,9 @@ std::unique_ptr<EmulatedEglWindowSurface> EmulationGl::createEmulatedEglWindowSu
 }
 
 std::unique_ptr<EmulatedEglWindowSurface> EmulationGl::loadEmulatedEglWindowSurface(
-        gfxstream::Stream* stream,
-        const ColorBufferMap& colorBuffers,
-        const EmulatedEglContextMap& contexts) {
-    return EmulatedEglWindowSurface::onLoad(stream, mEglDisplay, colorBuffers, contexts);
+    gfxstream::Stream* stream, const std::function<IColorBufferRef(uint32_t)>& colorBufferLookup,
+    const EmulatedEglContextMap& contexts) {
+    return EmulatedEglWindowSurface::onLoad(stream, mEglDisplay, colorBufferLookup, contexts);
 }
 
 }  // namespace gl

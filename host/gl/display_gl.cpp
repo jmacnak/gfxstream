@@ -14,12 +14,13 @@
 
 #include "display_gl.h"
 
-#include "display_surface_gl.h"
 #include "OpenGLESDispatch/DispatchTables.h"
 #include "OpenGLESDispatch/EGLDispatch.h"
-#include "texture_draw.h"
+#include "color_buffer_gl.h"
+#include "display_surface_gl.h"
 #include "gfxstream/common/logging.h"
 #include "gfxstream/host/display_operations.h"
+#include "texture_draw.h"
 
 namespace gfxstream {
 namespace host {
@@ -48,23 +49,25 @@ std::shared_future<void> DisplayGl::post(const Post& post) {
 
     bool hasDrawLayer = false;
     for (const PostLayer& layer : post.layers) {
+        if (!layer.colorBuffer) continue;
+        auto cbGl = layer.colorBuffer->getColorBufferGl();
+        if (!cbGl) continue;
+
         if (layer.layerOptions) {
             if (!hasDrawLayer) {
                 mTextureDraw->prepareForDrawLayer();
                 hasDrawLayer = true;
             }
-            layer.colorBuffer->glOpPostLayer(*layer.layerOptions, post.frameWidth,
-                                             post.frameHeight, post.colorTransform);
+            cbGl->postLayer(*layer.layerOptions, post.frameWidth, post.frameHeight,
+                            post.colorTransform);
         } else if (layer.overlayOptions) {
             if (hasDrawLayer) {
                 GFXSTREAM_ERROR("Cannot mix colorBuffer.postLayer with postWithOverlay!");
             }
 
-            layer.colorBuffer->glOpPostViewportScaledWithOverlay(
-                layer.overlayOptions->rotation,
-                layer.overlayOptions->dx, layer.overlayOptions->dy,
-                layer.overlayOptions->scaleX, layer.overlayOptions->scaleY,
-                layer.colorTransform);
+            cbGl->postViewportScaledWithOverlay(
+                layer.overlayOptions->rotation, layer.overlayOptions->dx, layer.overlayOptions->dy,
+                layer.overlayOptions->scaleX, layer.overlayOptions->scaleY, layer.colorTransform);
         }
     }
     if (hasDrawLayer) {

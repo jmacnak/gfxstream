@@ -20,7 +20,7 @@
 namespace gfxstream {
 namespace host {
 
-class ColorBuffer;
+class IColorBuffer;
 
 // This class implements async readback of ColorBuffers on both the FrameBuffer
 // posting thread and a separate worker thread.
@@ -52,11 +52,8 @@ class ReadbackWorker {
     // |readbackBgra|: Whether to force the readback format as GL_BGRA_EXT,
     // so that we get (depending on driver quality, heh) a gpu conversion of the
     // readback image that is suitable for webrtc, which expects formats like that.
-    virtual DoNextReadbackResult doNextReadback(uint32_t displayId,
-                                                ColorBuffer* cb,
-                                                void* fbImage,
-                                                bool repaint,
-                                                bool readbackBgra) = 0;
+    virtual DoNextReadbackResult doNextReadback(uint32_t displayId, IColorBuffer* cb, void* fbImage,
+                                                bool repaint, bool readbackBgra) = 0;
 
     // Retrieves the latest framebuffer that has been posted and read with
     // doNextReadback.  This is meant for apps like video encoding to use as

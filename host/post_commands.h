@@ -29,6 +29,7 @@
 namespace gfxstream {
 namespace host {
 
+class IColorBuffer;
 class ColorBuffer;
 
 // Posting

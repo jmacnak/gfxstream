@@ -21,10 +21,10 @@
 
 #include "color_buffer.h"
 #include "frame_buffer.h"
-#include "render_thread_info.h"
 #include "gfxstream/Tracing.h"
 #include "gfxstream/common/logging.h"
 #include "gfxstream/host/window_operations.h"
+#include "render_thread_info.h"
 #include "vulkan/vk_common_operations.h"
 
 namespace gfxstream {
@@ -92,8 +92,8 @@ void PostWorker::block(std::promise<void> scheduledSignal, std::future<void> con
 
 PostWorker::~PostWorker() {}
 
-void PostWorker::post(ColorBuffer* cb, std::unique_ptr<Post::CompletionCallback> postCallback,
-              const std::optional<std::array<float, 16>>& colorTransform) {
+void PostWorker::post(IColorBuffer* cb, std::unique_ptr<Post::CompletionCallback> postCallback,
+                      const std::optional<std::array<float, 16>>& colorTransform) {
     auto packagedPostCallback = std::shared_ptr<Post::CompletionCallback>(std::move(postCallback));
     runTask(
         std::packaged_task<void()>([cb, packagedPostCallback, this, colorTransform] {

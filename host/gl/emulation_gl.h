@@ -20,11 +20,14 @@
 #include <GLES3/gl3.h>
 
 #include <array>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <unordered_set>
 
+#include "OpenGLESDispatch/EGLDispatch.h"
+#include "OpenGLESDispatch/GLESv2Dispatch.h"
 #include "buffer_gl.h"
 #include "color_buffer_gl.h"
 #include "compositor.h"
@@ -36,17 +39,15 @@
 #include "emulated_egl_fence_sync.h"
 #include "emulated_egl_image.h"
 #include "emulated_egl_window_surface.h"
-#include "OpenGLESDispatch/EGLDispatch.h"
-#include "OpenGLESDispatch/GLESv2Dispatch.h"
-#include "pixel_read_formats.h"
-#include "readback_worker_gl.h"
-#include "texture_draw.h"
-#include "gfxstream/host/features.h"
 #include "gfxstream/host/display.h"
 #include "gfxstream/host/display_surface.h"
+#include "gfxstream/host/features.h"
 #include "gfxstream/host/gfxstream_format.h"
 #include "gfxstream/host/gl_enums.h"
+#include "pixel_read_formats.h"
+#include "readback_worker_gl.h"
 #include "render-utils/stream.h"
+#include "texture_draw.h"
 
 #define EGL_NO_CONFIG ((EGLConfig)0)
 
@@ -148,8 +149,7 @@ class EmulationGl {
         HandleType handle);
 
     std::unique_ptr<EmulatedEglWindowSurface> loadEmulatedEglWindowSurface(
-        Stream* stream,
-        const ColorBufferMap& colorBuffers,
+        Stream* stream, const std::function<IColorBufferRef(uint32_t)>& colorBufferLookup,
         const EmulatedEglContextMap& contexts);
 
     std::unique_ptr<DisplaySurface> createFakeWindowSurface();

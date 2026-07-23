@@ -22,10 +22,10 @@
 #include <atomic>
 #include <future>
 
-#include "color_buffer.h"
+#include "gfxstream/host/color_buffer_interface.h"
+#include "gfxstream/host/display.h"
 #include "hwc2.h"
 #include "texture_draw.h"
-#include "gfxstream/host/display.h"
 
 namespace gfxstream {
 namespace host {
@@ -37,20 +37,20 @@ class DisplayGl : public Display {
     ~DisplayGl() {}
 
     struct PostLayer {
-      ColorBuffer* colorBuffer = nullptr;
+        IColorBuffer* colorBuffer = nullptr;
 
-      std::optional<ComposeLayer> layerOptions;
+        std::optional<ComposeLayer> layerOptions;
 
-      // TODO: This should probably be removed and TextureDraw should
-      // only use drawLayer() but this is currently needed to support
-      // existing draw paths without depending on FrameBuffer directly.
-      struct OverlayOptions {
-        float rotation = 0.0f;
-        float dx = 0.0f;
-        float dy = 0.0f;
-        float scaleX = 1.0f;
-        float scaleY = 1.0f;
-      };
+        // TODO: This should probably be removed and TextureDraw should
+        // only use drawLayer() but this is currently needed to support
+        // existing draw paths without depending on FrameBuffer directly.
+        struct OverlayOptions {
+            float rotation = 0.0f;
+            float dx = 0.0f;
+            float dy = 0.0f;
+            float scaleX = 1.0f;
+            float scaleY = 1.0f;
+        };
       std::optional<OverlayOptions> overlayOptions;
 
       const std::optional<std::array<float, 16>> colorTransform;

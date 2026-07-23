@@ -45,8 +45,8 @@ hwc_transform_t getTransformFromRotation(int rotation) {
 PostWorkerVk::PostWorkerVk(FrameBuffer* fb, Compositor* compositor, vk::DisplayVk* displayVk)
     : PostWorker(false, fb, compositor), m_displayVk(displayVk) {}
 
-std::shared_future<void> PostWorkerVk::postImpl(ColorBuffer* cb,
-              const std::optional<std::array<float, 16>>& colorTransform) {
+std::shared_future<void> PostWorkerVk::postImpl(
+    IColorBuffer* cb, const std::optional<std::array<float, 16>>& colorTransform) {
     std::shared_future<void> completedFuture = std::async(std::launch::deferred, [] {}).share();
     completedFuture.wait();
 
@@ -57,7 +57,7 @@ std::shared_future<void> PostWorkerVk::postImpl(ColorBuffer* cb,
     std::vector<std::unique_ptr<BorrowedImageInfo>> borrowedImages;
     DisplayVk::Post postCmd;
 
-    auto addPostImage = [&](ColorBuffer* colorBuffer, int32_t x, int32_t y, int32_t w, int32_t h,
+    auto addPostImage = [&](IColorBuffer* colorBuffer, int32_t x, int32_t y, int32_t w, int32_t h,
                             float rotation,
                             const std::optional<std::array<float, 16>>& transform = std::nullopt) {
         auto info = mFb->borrowColorBufferForDisplay(colorBuffer->getHndl());
@@ -154,7 +154,7 @@ std::shared_future<void> PostWorkerVk::postImpl(ColorBuffer* cb,
                     continue;
                 }
 
-                ColorBuffer* currentCb =
+                IColorBuffer* currentCb =
                     currentDisplayId == 0
                         ? cb
                         : mFb->findColorBuffer(currentDisplayColorBufferHandle).get();
