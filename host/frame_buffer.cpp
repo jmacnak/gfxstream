@@ -24,6 +24,7 @@
 #include <time.h>
 
 #include <iomanip>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -121,6 +122,16 @@ bool postOnlyOnMainThread() {
 }
 
 static FrameBuffer* sFrameBuffer = NULL;
+
+// Limit number of resources for validation and consistency checks
+static constexpr uint32_t kNumMaxProcessResources = 5000;
+static constexpr uint32_t kNumMaxColorBuffers = 16000;
+
+// Version and magic numbers for framebuffer stream for validity checks.
+// The global snapshot version (e.g. kVersionBase for AEMU) should be updated when changing
+// the framebuffer version to avoid getting errors when loading old, unsupported snapshots.
+static constexpr uint32_t kFramebufferSnapshotVersionNumber = 1;
+static constexpr uint32_t kFramebufferSnapshotMagicNumber = 0xC0FFEEEE;
 
 // A condition variable needed to wait for framebuffer initialization.
 struct InitializedGlobals {
@@ -2340,16 +2351,17 @@ void FrameBuffer::Impl::createGraphicsProcessResources(uint64_t puid) {
 }
 
 std::unique_ptr<ProcessResources> FrameBuffer::Impl::removeGraphicsProcessResources(uint64_t puid) {
-    std::unordered_map<uint64_t, std::unique_ptr<ProcessResources>>::node_type node;
+    std::unique_ptr<ProcessResources> res;
     {
         AutoLock mutex(m_procOwnedResourcesLock);
-        node = m_procOwnedResources.extract(puid);
+        if (auto node = m_procOwnedResources.extract(puid)) {
+            res = std::move(node.mapped());
+        }
     }
-    if (node.empty()) {
+    if (!res) {
         GFXSTREAM_WARNING("Failed to find process resource for puid %" PRIu64 ".", puid);
         return nullptr;
     }
-    std::unique_ptr<ProcessResources> res = std::move(node.mapped());
     return res;
 }
 
@@ -3147,6 +3159,7 @@ bool FrameBuffer::Impl::onSave(Stream* stream,
     AutoLock mutex(m_lock);
 
     GFXSTREAM_DEBUG("snapshot save: save framebuffer");
+    stream->putBe32(kFramebufferSnapshotVersionNumber);
 
     std::unique_ptr<RecursiveScopedContextBind> bind;
 #if GFXSTREAM_ENABLE_HOST_GLES
@@ -3221,7 +3234,12 @@ bool FrameBuffer::Impl::onSave(Stream* stream,
 
     {
         AutoLock colorBufferMapLock(m_colorBufferMapLock);
-        GFXSTREAM_DEBUG("snapshot save: save %zu color buffers", m_colorbuffers.size());
+        const size_t colorBufferCount = m_colorbuffers.size();
+        if (colorBufferCount > kNumMaxColorBuffers) {
+            GFXSTREAM_ERROR("snapshot save: too many color buffers: %zu", colorBufferCount);
+            return false;
+        }
+        GFXSTREAM_DEBUG("snapshot save: save %zu color buffers", colorBufferCount);
         stream->putByte(m_guestManagedColorBufferLifetime);
         saveCollection(stream, m_colorbuffers, [now](Stream* s, const auto& pair) {
             auto cb = pair.second.cb;
@@ -3252,10 +3270,17 @@ bool FrameBuffer::Impl::onSave(Stream* stream,
     }
 #endif
 
-    // TODO(b/309858017): remove if when ready to bump snapshot version
-    if (m_features.VulkanSnapshots.enabled()) {
+    // save process owned resources
+    {
         AutoLock procResourceLock(m_procOwnedResourcesLock);
-        stream->putBe64(m_procOwnedResources.size());
+        size_t procResourceCount = m_procOwnedResources.size();
+        if (procResourceCount > kNumMaxProcessResources) {
+            GFXSTREAM_ERROR("snapshot save: too many process owned resources: %zu",
+                            procResourceCount);
+            return false;
+        }
+        GFXSTREAM_DEBUG("snapshot save: save %zu process owned resources", procResourceCount);
+        stream->putBe64(procResourceCount);
         for (const auto& element : m_procOwnedResources) {
             stream->putBe64(element.first);
             stream->putBe32(element.second->getSequenceNumberPtr()->load());
@@ -3277,6 +3302,10 @@ bool FrameBuffer::Impl::onSave(Stream* stream,
         EmulatedEglFenceSync::onSave(stream);
     }
 #endif
+
+    // Finish with a magic number to be able to verify load later on.
+    stream->putBe32(kFramebufferSnapshotMagicNumber);
+
     return true;
 }
 
@@ -3285,6 +3314,14 @@ bool FrameBuffer::Impl::onLoad(Stream* stream,
     AutoLock lock(m_lock);
 
     GFXSTREAM_DEBUG("snapshot load: load framebuffer");
+    const uint32_t versionSaved = stream->getBe32();
+    if (versionSaved != kFramebufferSnapshotVersionNumber) {
+        // The global snapshot version should be updated when changing the version for the
+        // framebuffer here in order to avoid this situation.
+        GFXSTREAM_ERROR("Unsupported snapshot version: 0x%x (Version supported: 0x%x)",
+                        versionSaved, kFramebufferSnapshotVersionNumber);
+        return false;
+    }
 
     // cleanups
     {
@@ -3384,7 +3421,6 @@ bool FrameBuffer::Impl::onLoad(Stream* stream,
                 GFXSTREAM_ERROR("warning: on load, stale colorbuffers: %zu", m_colorbuffers.size());
                 m_colorbuffers.clear();
             }
-            assert(m_colorbuffers.empty());
         }
 #if GFXSTREAM_ENABLE_HOST_GLES
         if (m_emulationGl) {
@@ -3438,13 +3474,14 @@ bool FrameBuffer::Impl::onLoad(Stream* stream,
         GFXSTREAM_DEBUG("snapshot load: load color buffers");
         AutoLock colorBufferMapLock(m_colorBufferMapLock);
         m_guestManagedColorBufferLifetime = stream->getByte();
-        loadCollection(
-            stream, &m_colorbuffers,
-            [this, now](Stream* stream) -> std::pair<HandleType, ReferenceCountedColorBuffer> {
+        bool colorBuffersLoaded = tryLoadCollection(
+            stream, &m_colorbuffers, kNumMaxColorBuffers,
+            [this, now](Stream* stream) -> std::optional<ColorBufferMap::value_type> {
                 ColorBufferPtr cb =
                     ColorBuffer::onLoad(m_emulationGl.get(), m_emulationVk.get(), stream);
                 if (!cb) {
-                    GFXSTREAM_FATAL("Cannot load color buffer for the snapshot!");
+                    GFXSTREAM_ERROR("Cannot load color buffer for the snapshot!");
+                    return std::nullopt;
                 }
                 const HandleType handle = cb->getHndl();
                 const unsigned refCount = stream->getBe32();
@@ -3453,9 +3490,15 @@ bool FrameBuffer::Impl::onLoad(Stream* stream,
                 if (refCount == 0) {
                     m_colorBufferDelayedCloseList.push_back({closedTs, handle});
                 }
-                return {handle,
-                        ReferenceCountedColorBuffer{std::move(cb), refCount, opened, closedTs}};
+                return std::make_optional(std::make_pair(
+                    handle,
+                    ReferenceCountedColorBuffer{std::move(cb), refCount, opened, closedTs}));
             });
+
+        if (!colorBuffersLoaded) {
+            GFXSTREAM_ERROR("snapshot load: could not load color buffers");
+            return false;
+        }
         GFXSTREAM_DEBUG("snapshot load: %zu color buffers loaded", m_colorbuffers.size());
     }
     m_lastPostedColorBuffer = static_cast<HandleType>(stream->getBe32());
@@ -3491,10 +3534,16 @@ bool FrameBuffer::Impl::onLoad(Stream* stream,
         m_emulationGl->loadProcOwnedContexts(stream);
     }
 #endif
-    // TODO(b/309858017): remove if when ready to bump snapshot version
-    if (m_features.VulkanSnapshots.enabled()) {
-        size_t resourceCount = stream->getBe64();
-        for (size_t i = 0; i < resourceCount; i++) {
+
+    // load process owned resources
+    {
+        uint64_t resourceCount = stream->getBe64();
+        if (resourceCount > kNumMaxProcessResources) {
+            GFXSTREAM_ERROR("%s:%d - too many process resources in snapshot: %" PRIu64, __func__,
+                            __LINE__, resourceCount);
+            return false;
+        }
+        for (uint64_t i = 0; i < resourceCount; i++) {
             uint64_t puid = stream->getBe64();
             uint32_t sequenceNumber = stream->getBe32();
             std::unique_ptr<ProcessResources> processResources = ProcessResources::create();
@@ -3551,6 +3600,14 @@ bool FrameBuffer::Impl::onLoad(Stream* stream,
         EmulatedEglFenceSync::onLoad(stream);
     }
 #endif
+
+    // Check if the stream is read correctly by checking a magic number at the end of the stream.
+    uint32_t magicNumberLoaded = stream->getBe32();
+    if (magicNumberLoaded != kFramebufferSnapshotMagicNumber) {
+        GFXSTREAM_ERROR("%s:%d - framebuffer snapshot magic number mismatch: 0x%x", __func__,
+                        __LINE__, magicNumberLoaded);
+        return false;
+    }
 
     GFXSTREAM_DEBUG("snapshot load: framebuffer loaded successfully");
 
