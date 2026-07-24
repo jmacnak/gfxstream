@@ -509,12 +509,12 @@ class FrameBuffer::Impl : public gfxstream::base::EventNotificationSupport<Frame
     void lock() ACQUIRE(m_lock);
     void unlock() RELEASE(m_lock);
 
-    float getDpr() const { return m_dpr; }
-    int windowWidth() const { return m_windowWidth; }
-    int windowHeight() const { return m_windowHeight; }
-    float getPx() const { return m_px; }
-    float getPy() const { return m_py; }
-    int getZrot() const { return m_zRot; }
+    float getDpr() const override { return m_dpr; }
+    int windowWidth() const override { return m_windowWidth; }
+    int windowHeight() const override { return m_windowHeight; }
+    float getPx() const override { return m_px; }
+    float getPy() const override { return m_py; }
+    int getZrot() const override { return m_zRot; }
 
     void setScreenMask(int width, int height, const uint8_t* rgbaData);
     void setScreenBackground(int width, int height, const uint8_t* rgbaData);
@@ -551,13 +551,13 @@ class FrameBuffer::Impl : public gfxstream::base::EventNotificationSupport<Frame
 
     // Saves a screenshot from a color buffer, applies post processing like color transform,
     // display layout and background blending.
-    int getColorBufferScreenshot(ColorBuffer* cb, int targetWidth, int targetHeight,
-                                 int skinRotation, GfxstreamFormat pixelsFormat, void* outPixels,
-                                 const Rect& rect,
-                                 const std::optional<std::array<float, 16>>& colorTransform);
+    int getColorBufferScreenshot(
+        IColorBuffer* cb, int targetWidth, int targetHeight, int skinRotation,
+        GfxstreamFormat pixelsFormat, void* outPixels, const Rect& rect,
+        const std::optional<std::array<float, 16>>& colorTransform) override;
 
     void onLastColorBufferRef(uint32_t handle);
-    ColorBufferPtr findColorBuffer(HandleType p_colorbuffer);
+    IColorBufferRef findColorBuffer(HandleType p_colorbuffer) override;
     BufferPtr findBuffer(HandleType p_buffer);
 
     void registerProcessCleanupCallback(void* key, uint64_t contextId,
@@ -1486,13 +1486,13 @@ std::unique_ptr<FrameBuffer::Impl> FrameBuffer::Impl::Create(FrameBuffer* frameb
 
     if (impl->m_useVulkanComposition) {
         impl->m_postWorker.reset(
-            new PostWorkerVk(framebuffer, impl->m_compositor, impl->m_displayVk));
+            new PostWorkerVk(impl.get(), impl->m_compositor, impl->m_displayVk));
     } else {
         const bool shouldPostOnlyOnMainThread = postOnlyOnMainThread();
 
 #if GFXSTREAM_ENABLE_HOST_GLES
         PostWorkerGl* postWorkerGl =
-            new PostWorkerGl(shouldPostOnlyOnMainThread, framebuffer, impl->m_compositor,
+            new PostWorkerGl(shouldPostOnlyOnMainThread, impl.get(), impl->m_compositor,
                              impl->m_displayGl, impl->m_emulationGl.get());
         impl->m_postWorker.reset(postWorkerGl);
         impl->m_displaySurfaceUsers.push_back(postWorkerGl);
@@ -2549,7 +2549,7 @@ void FrameBuffer::Impl::readColorBuffer(HandleType p_colorbuffer, int x, int y, 
 
     AutoLock mutex(m_lock);
 
-    ColorBufferPtr colorBuffer = findColorBuffer(p_colorbuffer);
+    IColorBufferRef colorBuffer = findColorBuffer(p_colorbuffer);
     if (!colorBuffer) {
         // bad colorbuffer handle
         return;
@@ -2577,7 +2577,7 @@ void FrameBuffer::Impl::readColorBufferYUV(HandleType p_colorbuffer, int x, int 
                                            int height, void* outPixels, uint32_t outPixelsSize) {
     AutoLock mutex(m_lock);
 
-    ColorBufferPtr colorBuffer = findColorBuffer(p_colorbuffer);
+    auto colorBuffer = findColorBuffer(p_colorbuffer);
     if (!colorBuffer) {
         // bad colorbuffer handle
         return;
@@ -2610,15 +2610,13 @@ bool FrameBuffer::Impl::updateColorBuffer(HandleType p_colorbuffer, int x, int y
 
     AutoLock mutex(m_lock);
 
-    ColorBufferPtr colorBuffer = findColorBuffer(p_colorbuffer);
+    auto colorBuffer = findColorBuffer(p_colorbuffer);
     if (!colorBuffer) {
         // bad colorbuffer handle
         return false;
     }
 
-    colorBuffer->updateFromBytes(x, y, width, height, pixelsFormat, pixels);
-
-    return true;
+    return colorBuffer->updateFromBytes(x, y, width, height, pixelsFormat, pixels);
 }
 
 bool FrameBuffer::Impl::updateColorBufferDeprecated(HandleType colorbuffer, int x, int y, int width,
@@ -2766,7 +2764,8 @@ AsyncResult FrameBuffer::Impl::postImpl(HandleType p_colorbuffer, Post::Completi
                     continue;
                 }
 
-                cb = findColorBuffer(displayColorBufferHandle);
+                cb = std::static_pointer_cast<ColorBuffer>(
+                    findColorBuffer(displayColorBufferHandle));
                 if (!cb) {
                     GFXSTREAM_ERROR("Failed to find ColorBuffer %d, skip onPost",
                                     displayColorBufferHandle);
@@ -2950,7 +2949,7 @@ int FrameBuffer::Impl::getScreenshot(unsigned int nChannels, unsigned int* width
     if (displayId == 0) {
         cb = m_lastPostedColorBuffer;
     }
-    ColorBufferPtr colorBuffer = findColorBuffer(cb);
+    IColorBufferRef colorBuffer = findColorBuffer(cb);
     if (!colorBuffer) {
         *width = 0;
         *height = 0;
@@ -3063,7 +3062,7 @@ int FrameBuffer::Impl::getScreenshot(unsigned int nChannels, unsigned int* width
 }
 
 int FrameBuffer::Impl::getColorBufferScreenshot(
-    ColorBuffer* cb, int targetWidth, int targetHeight, int skinRotation,
+    IColorBuffer* cb, int targetWidth, int targetHeight, int skinRotation,
     GfxstreamFormat pixelsFormat, void* outPixels, const Rect& rect,
     const std::optional<std::array<float, 16>>& colorTransform) {
     uint8_t* outPixelsRGBA = reinterpret_cast<uint8_t*>(outPixels);
@@ -3665,7 +3664,7 @@ void FrameBuffer::Impl::lockGlobalState() NO_THREAD_SAFETY_ANALYSIS { lock(); }
 
 void FrameBuffer::Impl::unlockGlobalState() NO_THREAD_SAFETY_ANALYSIS { unlock(); }
 
-ColorBufferPtr FrameBuffer::Impl::findColorBuffer(HandleType p_colorbuffer) {
+IColorBufferRef FrameBuffer::Impl::findColorBuffer(HandleType p_colorbuffer) {
     AutoLock colorBufferMapLock(m_colorBufferMapLock);
     auto it = m_colorbuffers.find(p_colorbuffer);
     if (it == m_colorbuffers.end()) {
@@ -3914,7 +3913,8 @@ int FrameBuffer::Impl::getDisplayActiveConfig() {
 
 bool FrameBuffer::Impl::flushColorBufferFromVk(HandleType colorBufferHandle) {
     AutoLock mutex(m_lock);
-    auto colorBuffer = findColorBuffer(colorBufferHandle);
+    ColorBufferPtr colorBuffer =
+        std::static_pointer_cast<ColorBuffer>(findColorBuffer(colorBufferHandle));
     if (!colorBuffer) {
         GFXSTREAM_ERROR("%s: Failed to find ColorBuffer:%d", __func__, colorBufferHandle);
         return false;
@@ -3926,7 +3926,8 @@ bool FrameBuffer::Impl::flushColorBufferFromVkBytes(HandleType colorBufferHandle
                                                     size_t bytesSize) {
     AutoLock mutex(m_lock);
 
-    auto colorBuffer = findColorBuffer(colorBufferHandle);
+    ColorBufferPtr colorBuffer =
+        std::static_pointer_cast<ColorBuffer>(findColorBuffer(colorBufferHandle));
     if (!colorBuffer) {
         GFXSTREAM_ERROR("%s: Failed to find ColorBuffer:%d", __func__, colorBufferHandle);
         return false;
@@ -3953,7 +3954,7 @@ std::optional<BlobDescriptorInfo> FrameBuffer::Impl::exportColorBuffer(
     HandleType colorBufferHandle) {
     AutoLock mutex(m_lock);
 
-    ColorBufferPtr colorBuffer = findColorBuffer(colorBufferHandle);
+    auto colorBuffer = findColorBuffer(colorBufferHandle);
     if (!colorBuffer) {
         return std::nullopt;
     }
@@ -4695,7 +4696,8 @@ bool FrameBuffer::Impl::platformDestroySharedEglContext(void* underlyingContext)
 }
 
 bool FrameBuffer::Impl::flushColorBufferFromGl(HandleType colorBufferHandle) {
-    auto colorBuffer = findColorBuffer(colorBufferHandle);
+    ColorBufferPtr colorBuffer =
+        std::static_pointer_cast<ColorBuffer>(findColorBuffer(colorBufferHandle));
     if (!colorBuffer) {
         GFXSTREAM_ERROR("%s: Failed to find ColorBuffer:%d", __func__, colorBufferHandle);
         return false;
@@ -4726,7 +4728,8 @@ ContextHelper* FrameBuffer::Impl::getPbufferSurfaceContextHelper() const {
 bool FrameBuffer::Impl::bindColorBufferToTexture(HandleType p_colorbuffer) {
     AutoLock mutex(m_lock);
 
-    ColorBufferPtr colorBuffer = findColorBuffer(p_colorbuffer);
+    ColorBufferPtr colorBuffer =
+        std::static_pointer_cast<ColorBuffer>(findColorBuffer(p_colorbuffer));
     if (!colorBuffer) {
         // bad colorbuffer handle
         return false;
@@ -4743,7 +4746,8 @@ bool FrameBuffer::Impl::bindColorBufferToTexture2(HandleType p_colorbuffer) {
         mutex = std::make_unique<AutoLock>(m_lock);
     }
 
-    ColorBufferPtr colorBuffer = findColorBuffer(p_colorbuffer);
+    ColorBufferPtr colorBuffer =
+        std::static_pointer_cast<ColorBuffer>(findColorBuffer(p_colorbuffer));
     if (!colorBuffer) {
         // bad colorbuffer handle
         return false;
@@ -4765,7 +4769,8 @@ bool FrameBuffer::Impl::bindColorBufferToTexture2(HandleType p_colorbuffer) {
 bool FrameBuffer::Impl::bindColorBufferToRenderbuffer(HandleType p_colorbuffer) {
     AutoLock mutex(m_lock);
 
-    ColorBufferPtr colorBuffer = findColorBuffer(p_colorbuffer);
+    ColorBufferPtr colorBuffer =
+        std::static_pointer_cast<ColorBuffer>(findColorBuffer(p_colorbuffer));
     if (!colorBuffer) {
         // bad colorbuffer handle
         return false;
@@ -4966,7 +4971,8 @@ void FrameBuffer::Impl::swapTexturesAndUpdateColorBuffer(uint32_t p_colorbuffer,
 
     {
         AutoLock mutex(m_lock);
-        ColorBufferPtr colorBuffer = findColorBuffer(p_colorbuffer);
+        ColorBufferPtr colorBuffer =
+            std::static_pointer_cast<ColorBuffer>(findColorBuffer(p_colorbuffer));
         if (!colorBuffer) {
             // bad colorbuffer handle
             return;

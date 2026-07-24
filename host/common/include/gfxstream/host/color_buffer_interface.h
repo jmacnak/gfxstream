@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 
+#include "gfxstream/host/external_object_manager.h"
 #include "gfxstream/host/gfxstream_format.h"
 #include "render-utils/Renderer.h"
 
@@ -59,6 +60,13 @@ class IColorBuffer {
     virtual void readToBytesScaled(int pixelsWidth, int pixelsHeight, int pixelsRotation,
                                    const Rect& rect, GfxstreamFormat pixelsFormat, void* outPixels,
                                    const std::optional<std::array<float, 16>>& colorTransform) = 0;
+    virtual void readYuvToBytes(int x, int y, int width, int height, void* outPixels,
+                                uint32_t outPixelsSize) = 0;
+
+    virtual bool updateFromBytes(int x, int y, int width, int height, GfxstreamFormat pixelsFormat,
+                                 const void* pixels, void* metadata = nullptr) = 0;
+
+    virtual std::optional<BlobDescriptorInfo> exportBlob() = 0;
 };
 
 // A (mostly) generic shared owning reference  to a `ColorBuffer` so that the

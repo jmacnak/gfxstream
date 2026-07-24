@@ -30,7 +30,6 @@ namespace gfxstream {
 namespace host {
 
 class IColorBuffer;
-class ColorBuffer;
 
 // Posting
 enum class PostCmd {
@@ -62,13 +61,13 @@ struct Post {
 
     //TODO: remove union here and separate into message structures
     union {
-        ColorBuffer* cb;
+        IColorBuffer* cb;
         struct {
             int width;
             int height;
         } viewport;
         struct {
-            ColorBuffer* cb;
+            IColorBuffer* cb;
             int screenwidth;
             int screenheight;
             int rotation;

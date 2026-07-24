@@ -78,10 +78,10 @@ class ColorBuffer : public IColorBuffer, public LazySnapshotObj<ColorBuffer> {
                            GfxstreamFormat pixelsFormat, void* outPixels,
                            const std::optional<std::array<float, 16>>& colorTransform) override;
     void readYuvToBytes(int x, int y, int width, int height, void* outPixels,
-                        uint32_t outPixelsSize);
+                        uint32_t outPixelsSize) override;
 
     bool updateFromBytes(int x, int y, int width, int height, GfxstreamFormat pixelsFormat,
-                         const void* pixels, void* metadata = nullptr);
+                         const void* pixels, void* metadata = nullptr) override;
     bool updateGlFromBytes(const void* bytes, std::size_t bytesSize);
 
     bool invalidateForBackend(Backend backend) override;
@@ -91,7 +91,7 @@ class ColorBuffer : public IColorBuffer, public LazySnapshotObj<ColorBuffer> {
     bool flushFromVk();
     bool flushFromVkBytes(const void* bytes, size_t bytesSize);
 
-    std::optional<BlobDescriptorInfo> exportBlob();
+    std::optional<BlobDescriptorInfo> exportBlob() override;
 
 #if GFXSTREAM_ENABLE_HOST_GLES
     bool canUseGlOps();
