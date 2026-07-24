@@ -21,7 +21,6 @@ if(CONFIG_AEMU)
 endif()
 
 add_library(gfxstream-vulkan-server
-            borrowed_image_vk.cpp
             buffer_vk.cpp
             color_buffer_vk.cpp
             compositor_vk.cpp

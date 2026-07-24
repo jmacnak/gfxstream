@@ -30,7 +30,6 @@ cc_library(
         "yuv_converter.cpp",
     ],
     hdrs = [
-        "borrowed_image_gl.h",
         "buffer_gl.h",
         "color_buffer_gl.h",
         "compositor_gl.h",

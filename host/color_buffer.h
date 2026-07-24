@@ -23,7 +23,6 @@
 #include <optional>
 
 #include "framework_formats.h"
-#include "gfxstream/host/borrowed_image.h"
 #include "gfxstream/host/color_buffer_interface.h"
 #include "gfxstream/host/external_object_manager.h"
 #include "gfxstream/host/gfxstream_format.h"
@@ -74,10 +73,10 @@ class ColorBuffer : public IColorBuffer, public LazySnapshotObj<ColorBuffer> {
     GfxstreamFormat getFormat() const;
 
     void readToBytes(int x, int y, int width, int height, GfxstreamFormat pixelsFormat,
-                     void* outPixels, uint64_t outPixelsSize);
+                     void* outPixels, uint64_t outPixelsSize) override;
     void readToBytesScaled(int pixelsWidth, int pixelsHeight, int pixelsRotation, const Rect& rect,
                            GfxstreamFormat pixelsFormat, void* outPixels,
-                           const std::optional<std::array<float, 16>>& colorTransform);
+                           const std::optional<std::array<float, 16>>& colorTransform) override;
     void readYuvToBytes(int x, int y, int width, int height, void* outPixels,
                         uint32_t outPixelsSize);
 
@@ -85,18 +84,12 @@ class ColorBuffer : public IColorBuffer, public LazySnapshotObj<ColorBuffer> {
                          const void* pixels, void* metadata = nullptr);
     bool updateGlFromBytes(const void* bytes, std::size_t bytesSize);
 
-    enum class UsedApi {
-        kGl,
-        kVk,
-    };
-    std::unique_ptr<BorrowedImageInfo> borrowForComposition(UsedApi api, bool isTarget);
-    std::unique_ptr<BorrowedImageInfo> borrowForDisplay(UsedApi api);
+    bool invalidateForBackend(Backend backend) override;
+    bool importHandle(void* handle, bool preserveContent) override;
 
     bool flushFromGl();
     bool flushFromVk();
     bool flushFromVkBytes(const void* bytes, size_t bytesSize);
-    bool invalidateForGl();
-    bool invalidateForVk();
 
     std::optional<BlobDescriptorInfo> exportBlob();
 

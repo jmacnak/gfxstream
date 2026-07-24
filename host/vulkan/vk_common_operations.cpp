@@ -5125,7 +5125,7 @@ void VkEmulation::releaseColorBufferForGuestUse(uint32_t colorBufferHandle) {
     VK_CHECK(vk->vkWaitForFences(mDevice, 1, &fence, VK_TRUE, ANB_MAX_WAIT_NS));
 }
 
-std::unique_ptr<BorrowedImageInfoVk> VkEmulation::borrowColorBufferForComposition(
+std::unique_ptr<ColorBufferVkImageInfo> VkEmulation::prepareColorBufferForComposition(
     uint32_t colorBufferHandle, bool colorBufferIsTarget) {
     std::lock_guard<std::mutex> lock(mMutex);
 
@@ -5135,7 +5135,7 @@ std::unique_ptr<BorrowedImageInfoVk> VkEmulation::borrowColorBufferForCompositio
         return nullptr;
     }
 
-    auto compositorInfo = std::make_unique<BorrowedImageInfoVk>();
+    auto compositorInfo = std::make_unique<ColorBufferVkImageInfo>();
     compositorInfo->id = colorBufferInfo->handle;
     compositorInfo->width = colorBufferInfo->imageCreateInfoShallow.extent.width;
     compositorInfo->height = colorBufferInfo->imageCreateInfoShallow.extent.height;
@@ -5167,7 +5167,7 @@ std::unique_ptr<BorrowedImageInfoVk> VkEmulation::borrowColorBufferForCompositio
     return compositorInfo;
 }
 
-std::unique_ptr<BorrowedImageInfoVk> VkEmulation::borrowColorBufferForDisplay(
+std::unique_ptr<ColorBufferVkImageInfo> VkEmulation::prepareColorBufferForDisplay(
     uint32_t colorBufferHandle) {
     std::lock_guard<std::mutex> lock(mMutex);
 
@@ -5177,7 +5177,7 @@ std::unique_ptr<BorrowedImageInfoVk> VkEmulation::borrowColorBufferForDisplay(
         return nullptr;
     }
 
-    auto compositorInfo = std::make_unique<BorrowedImageInfoVk>();
+    auto compositorInfo = std::make_unique<ColorBufferVkImageInfo>();
     compositorInfo->id = colorBufferInfo->handle;
     compositorInfo->width = colorBufferInfo->imageCreateInfoShallow.extent.width;
     compositorInfo->height = colorBufferInfo->imageCreateInfoShallow.extent.height;
@@ -5197,6 +5197,18 @@ std::unique_ptr<BorrowedImageInfoVk> VkEmulation::borrowColorBufferForDisplay(
     colorBufferInfo->currentQueueFamilyIndex = compositorInfo->postBorrowQueueFamilyIndex;
 
     return compositorInfo;
+}
+
+void VkEmulation::updateColorBufferLayoutAndQueue(uint32_t colorBufferHandle, VkImageLayout layout,
+                                                  uint32_t queueFamilyIndex) {
+    std::lock_guard<std::mutex> lock(mMutex);
+    auto colorBufferInfo = gfxstream::base::find(mColorBuffers, colorBufferHandle);
+    if (!colorBufferInfo) {
+        GFXSTREAM_ERROR("Invalid ColorBuffer handle %d.", static_cast<int>(colorBufferHandle));
+        return;
+    }
+    colorBufferInfo->currentLayout = layout;
+    colorBufferInfo->currentQueueFamilyIndex = queueFamilyIndex;
 }
 
 std::optional<RepresentativeColorBufferMemoryTypeInfo>

@@ -45,8 +45,7 @@ std::shared_future<void> PostWorker::composeImpl(const FlatComposeRequest& compo
     }
 
     Compositor::CompositionRequest compositorRequest = {};
-    compositorRequest.target = mFb->borrowColorBufferForComposition(composeRequest.targetHandle,
-                                                                    /*colorBufferIsTarget=*/true);
+    compositorRequest.target = mFb->findColorBuffer(composeRequest.targetHandle);
     if (!compositorRequest.target) {
         GFXSTREAM_ERROR("Compose target is null (cb=0x%x).", composeRequest.targetHandle);
         return completedFuture;
@@ -58,8 +57,7 @@ std::shared_future<void> PostWorker::composeImpl(const FlatComposeRequest& compo
             auto& compositorLayer = compositorRequest.layers.emplace_back();
             compositorLayer.props = guestLayer;
         } else {
-            auto source = mFb->borrowColorBufferForComposition(guestLayer.cbHandle,
-                                                            /*colorBufferIsTarget=*/false);
+            auto source = mFb->findColorBuffer(guestLayer.cbHandle);
             if (!source) {
                 continue;
             }

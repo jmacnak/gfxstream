@@ -15,11 +15,12 @@
  */
 #include "post_worker_vk.h"
 
-#include "host/frame_buffer.h"
+#include "gfxstream/common/logging.h"
 #include "gfxstream/host/display_operations.h"
 #include "gfxstream/host/renderer_operations.h"
 #include "gfxstream/host/window_operations.h"
-#include "gfxstream/common/logging.h"
+#include "host/frame_buffer.h"
+#include "vulkan/color_buffer_vk.h"
 #include "vulkan/display_vk.h"
 
 namespace gfxstream {
@@ -54,13 +55,15 @@ std::shared_future<void> PostWorkerVk::postImpl(
         GFXSTREAM_FATAL("PostWorker missing DisplayVk.");
     }
 
-    std::vector<std::unique_ptr<BorrowedImageInfo>> borrowedImages;
+    std::vector<std::unique_ptr<ColorBufferVkImageInfo>> borrowedImages;
     DisplayVk::Post postCmd;
 
     auto addPostImage = [&](IColorBuffer* colorBuffer, int32_t x, int32_t y, int32_t w, int32_t h,
                             float rotation,
                             const std::optional<std::array<float, 16>>& transform = std::nullopt) {
-        auto info = mFb->borrowColorBufferForDisplay(colorBuffer->getHndl());
+        colorBuffer->invalidateForBackend(Backend::VK);
+        auto cbVk = colorBuffer->getColorBufferVk();
+        auto info = cbVk ? cbVk->prepareForDisplay() : nullptr;
         if (!info) return;
 
         DisplayVk::PostLayer layer;

@@ -23,22 +23,22 @@
 #include <unordered_set>
 #include <vector>
 
-#include "borrowed_image_vk.h"
+#include "color_buffer_vk.h"
 #include "compositor_vk.h"
 #include "debug_utils_helper.h"
 #include "device_lost_helper.h"
 #include "display_vk.h"
 #include "external_memory.h"
+#include "gfxstream/Optional.h"
+#include "gfxstream/ThreadAnnotations.h"
+#include "gfxstream/host/GfxApiLogger.h"
+#include "gfxstream/host/RenderDoc.h"
 #include "gfxstream/host/backend_callbacks.h"
 #include "gfxstream/host/external_object_manager.h"
 #include "gfxstream/host/features.h"
 #include "gfxstream/host/gfxstream_format.h"
-#include "gfxstream/host/GfxApiLogger.h"
-#include "gfxstream/host/RenderDoc.h"
 #include "gfxstream/host/vk_enums.h"
 #include "gfxstream/memory/UdmabufCreator.h"
-#include "gfxstream/Optional.h"
-#include "gfxstream/ThreadAnnotations.h"
 #include "goldfish_vk_private_defs.h"
 #include "host/framework_formats.h"
 #include "render-utils/Renderer.h"
@@ -451,9 +451,12 @@ class VkEmulation {
 
     void releaseColorBufferForGuestUse(uint32_t colorBufferHandle);
 
-    std::unique_ptr<BorrowedImageInfoVk> borrowColorBufferForComposition(uint32_t colorBufferHandle,
-                                                                         bool colorBufferIsTarget);
-    std::unique_ptr<BorrowedImageInfoVk> borrowColorBufferForDisplay(uint32_t colorBufferHandle);
+    std::unique_ptr<ColorBufferVkImageInfo> prepareColorBufferForComposition(
+        uint32_t colorBufferHandle, bool colorBufferIsTarget);
+    std::unique_ptr<ColorBufferVkImageInfo> prepareColorBufferForDisplay(
+        uint32_t colorBufferHandle);
+    void updateColorBufferLayoutAndQueue(uint32_t colorBufferHandle, VkImageLayout layout,
+                                         uint32_t queueFamilyIndex);
 
     void applyApiVersionLimits(uint32_t& apiVersion) const {
         if (apiVersion > mGuestVulkanMaxApiVersion) {
