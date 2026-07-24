@@ -14,8 +14,13 @@
 
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <memory>
+#include <optional>
+
+#include "gfxstream/host/gfxstream_format.h"
+#include "render-utils/Renderer.h"
 
 namespace gfxstream {
 namespace host {
@@ -27,6 +32,8 @@ class ColorBufferGl;
 namespace vk {
 class ColorBufferVk;
 }  // namespace vk
+
+enum class Backend { GL, VK };
 
 // A (mostly) generic interface to a `ColorBuffer` so that the various backends
 // interact with `ColorBuffer`s without needing to depend on all of the various
@@ -43,6 +50,15 @@ class IColorBuffer {
 
     virtual gl::ColorBufferGl* getColorBufferGl() = 0;
     virtual vk::ColorBufferVk* getColorBufferVk() = 0;
+
+    virtual bool invalidateForBackend(Backend backend) = 0;
+    virtual bool importHandle(void* handle, bool preserveContent) = 0;
+
+    virtual void readToBytes(int x, int y, int width, int height, GfxstreamFormat pixelsFormat,
+                             void* outPixels, uint64_t outPixelsSize) = 0;
+    virtual void readToBytesScaled(int pixelsWidth, int pixelsHeight, int pixelsRotation,
+                                   const Rect& rect, GfxstreamFormat pixelsFormat, void* outPixels,
+                                   const std::optional<std::array<float, 16>>& colorTransform) = 0;
 };
 
 // A (mostly) generic shared owning reference  to a `ColorBuffer` so that the

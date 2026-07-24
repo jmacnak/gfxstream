@@ -107,12 +107,13 @@ bool ColorBufferVk::updateFromBytes(uint32_t x, uint32_t y, uint32_t w, uint32_t
     return mVkEmulation.updateColorBufferFromBytes(mHandle, x, y, w, h, bytes);
 }
 
-std::unique_ptr<BorrowedImageInfo> ColorBufferVk::borrowForComposition(bool colorBufferIsTarget) {
-    return mVkEmulation.borrowColorBufferForComposition(mHandle, colorBufferIsTarget);
+std::unique_ptr<ColorBufferVkImageInfo> ColorBufferVk::prepareForComposition(
+    bool colorBufferIsTarget) {
+    return mVkEmulation.prepareColorBufferForComposition(mHandle, colorBufferIsTarget);
 }
 
-std::unique_ptr<BorrowedImageInfo> ColorBufferVk::borrowForDisplay() {
-    return mVkEmulation.borrowColorBufferForDisplay(mHandle);
+std::unique_ptr<ColorBufferVkImageInfo> ColorBufferVk::prepareForDisplay() {
+    return mVkEmulation.prepareColorBufferForDisplay(mHandle);
 }
 
 std::optional<BlobDescriptorInfo> ColorBufferVk::exportBlob() {

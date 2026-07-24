@@ -72,14 +72,13 @@ class ColorBuffer::Impl : public LazySnapshotObj<ColorBuffer::Impl> {
                          const void* pixels, void* metadata = nullptr);
     bool updateGlFromBytes(const void* bytes, std::size_t bytesSize);
 
-    std::unique_ptr<BorrowedImageInfo> borrowForComposition(UsedApi api, bool isTarget);
-    std::unique_ptr<BorrowedImageInfo> borrowForDisplay(UsedApi api);
-
     bool flushFromGl();
     bool flushFromVk();
     bool flushFromVkBytes(const void* bytes, size_t bytesSize);
     bool invalidateForGl();
     bool invalidateForVk();
+    bool invalidateForBackend(Backend backend);
+    bool importHandle(void* handle, bool preserveContent);
 
     std::optional<BlobDescriptorInfo> exportBlob();
 
@@ -348,51 +347,17 @@ bool ColorBuffer::Impl::updateGlFromBytes(const void* bytes, std::size_t bytesSi
     return true;
 }
 
-std::unique_ptr<BorrowedImageInfo> ColorBuffer::Impl::borrowForComposition(UsedApi api,
-                                                                           bool isTarget) {
-    switch (api) {
-        case UsedApi::kGl: {
-#if GFXSTREAM_ENABLE_HOST_GLES
-            if (!mColorBufferGl) {
-                GFXSTREAM_ERROR("%s: ColorBufferGl not available", __func__);
-                return nullptr;
-            }
-            return mColorBufferGl->getBorrowedImageInfo();
-#endif
-        }
-        case UsedApi::kVk: {
-            if (!mColorBufferVk) {
-                GFXSTREAM_ERROR("%s: ColorBufferVk not available", __func__);
-                return nullptr;
-            }
-            return mColorBufferVk->borrowForComposition(isTarget);
-        }
-    }
-    GFXSTREAM_ERROR("%s: Unimplemented", __func__);
-    return nullptr;
+bool ColorBuffer::Impl::invalidateForBackend(Backend backend) {
+    return backend == Backend::VK ? invalidateForVk() : invalidateForGl();
 }
 
-std::unique_ptr<BorrowedImageInfo> ColorBuffer::Impl::borrowForDisplay(UsedApi api) {
-    switch (api) {
-        case UsedApi::kGl: {
+bool ColorBuffer::Impl::importHandle(void* handle, bool preserveContent) {
 #if GFXSTREAM_ENABLE_HOST_GLES
-            if (!mColorBufferGl) {
-                GFXSTREAM_ERROR("%s: ColorBufferGl not available", __func__);
-                return nullptr;
-            }
-            return mColorBufferGl->getBorrowedImageInfo();
-#endif
-        }
-        case UsedApi::kVk: {
-            if (!mColorBufferVk) {
-                GFXSTREAM_ERROR("%s: ColorBufferVk not available", __func__);
-                return nullptr;
-            }
-            return mColorBufferVk->borrowForDisplay();
-        }
+    if (mColorBufferGl) {
+        return mColorBufferGl->importEglNativePixmap(handle, preserveContent);
     }
-    GFXSTREAM_ERROR("%s: Unimplemented", __func__);
-    return nullptr;
+#endif
+    return false;
 }
 
 bool ColorBuffer::Impl::flushFromGl() {
@@ -714,12 +679,12 @@ bool ColorBuffer::updateGlFromBytes(const void* bytes, std::size_t bytesSize) {
     return mImpl->updateGlFromBytes(bytes, bytesSize);
 }
 
-std::unique_ptr<BorrowedImageInfo> ColorBuffer::borrowForComposition(UsedApi api, bool isTarget) {
-    return mImpl->borrowForComposition(api, isTarget);
+bool ColorBuffer::invalidateForBackend(Backend backend) {
+    return mImpl->invalidateForBackend(backend);
 }
 
-std::unique_ptr<BorrowedImageInfo> ColorBuffer::borrowForDisplay(UsedApi api) {
-    return mImpl->borrowForDisplay(api);
+bool ColorBuffer::importHandle(void* handle, bool preserveContent) {
+    return mImpl->importHandle(handle, preserveContent);
 }
 
 bool ColorBuffer::flushFromGl() { return mImpl->flushFromGl(); }
@@ -729,10 +694,6 @@ bool ColorBuffer::flushFromVk() { return mImpl->flushFromVk(); }
 bool ColorBuffer::flushFromVkBytes(const void* bytes, size_t bytesSize) {
     return mImpl->flushFromVkBytes(bytes, bytesSize);
 }
-
-bool ColorBuffer::invalidateForGl() { return mImpl->invalidateForGl(); }
-
-bool ColorBuffer::invalidateForVk() { return mImpl->invalidateForVk(); }
 
 std::optional<BlobDescriptorInfo> ColorBuffer::exportBlob() { return mImpl->exportBlob(); }
 

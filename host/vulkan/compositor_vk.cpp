@@ -22,6 +22,7 @@
 
 #include "gfxstream/common/logging.h"
 #include "gfxstream/host/tracing.h"
+#include "vulkan/color_buffer_vk.h"
 #include "vulkan/compositor_fragment_shader.h"
 #include "vulkan/compositor_vertex_shader.h"
 #include "vulkan/vk_enum_string_helper.h"
@@ -45,16 +46,6 @@ static const GfxstreamFormat kRenderTargetFormats[2] = {
     GfxstreamFormat::R8G8B8A8_UNORM,
     GfxstreamFormat::B8G8R8A8_UNORM,
 };
-
-const BorrowedImageInfoVk* getInfoOrAbort(const std::unique_ptr<BorrowedImageInfo>& info) {
-    auto imageVk = static_cast<const BorrowedImageInfoVk*>(info.get());
-    if (imageVk != nullptr) {
-        return imageVk;
-    }
-
-    GFXSTREAM_FATAL("CompositorVk did not find BorrowedImageInfoVk");
-    return nullptr;
-}
 
 struct Vertex {
     alignas(8) glm::vec2 pos;
@@ -1159,7 +1150,7 @@ VkFormatFeatureFlags CompositorVk::getFormatFeatures(VkFormat format, VkImageTil
 }
 
 CompositorVk::RenderTarget* CompositorVk::getOrCreateRenderTargetInfo(
-    const BorrowedImageInfoVk& imageInfo) {
+    const ColorBufferVkImageInfo& imageInfo) {
     std::lock_guard<std::mutex> lock(m_renderTargetCacheMutex);
     auto* renderTargetPtr = m_renderTargetCache.get(imageInfo.id);
     if (renderTargetPtr != nullptr) {
@@ -1196,13 +1187,13 @@ bool CompositorVk::canCompositeFrom(const VkImageCreateInfo& imageCi) {
     return true;
 }
 
-void CompositorVk::buildCompositionVk(const CompositionRequest& compositionRequest,
+void CompositorVk::buildCompositionVk(const CompositionRequestVk& compositionRequest,
                                       CompositionVk* compositionVk) {
-    if (compositionRequest.target.get() == nullptr) {
+    if (compositionRequest.target == nullptr) {
         GFXSTREAM_ERROR("invalid target!");
         return;
     }
-    const BorrowedImageInfoVk* targetImage = getInfoOrAbort(compositionRequest.target);
+    const ColorBufferVkImageInfo* targetImage = compositionRequest.target;
 
     auto renderPassIt = m_vkRenderPasses.find(targetImage->imageFormat);
     if (renderPassIt == m_vkRenderPasses.end()) {
@@ -1220,16 +1211,16 @@ void CompositorVk::buildCompositionVk(const CompositionRequest& compositionReque
     compositionVk->targetRenderPass = renderPassIt->second;
     compositionVk->targetFramebuffer = targetImageRenderTarget->m_vkFramebuffer;
 
-    for (const CompositionRequestLayer& layer : compositionRequest.layers) {
+    for (const CompositionRequestLayerVk& layer : compositionRequest.layers) {
         uint32_t sourceImageWidth = 0;
         uint32_t sourceImageHeight = 0;
-        const BorrowedImageInfoVk* sourceImage = nullptr;
+        const ColorBufferVkImageInfo* sourceImage = nullptr;
 
         if (layer.props.composeMode == HWC2_COMPOSITION_SOLID_COLOR) {
             sourceImageWidth = targetWidth;
             sourceImageHeight = targetHeight;
         } else if (layer.source) {
-            sourceImage = getInfoOrAbort(layer.source);
+            sourceImage = layer.source;
             if (!canCompositeFrom(sourceImage->imageCreateInfo)) {
                 continue;
             }
@@ -1391,8 +1382,55 @@ void CompositorVk::buildCompositionVk(const CompositionRequest& compositionReque
     }
 }
 
+static Compositor::CompositionFinishedWaitable getCompletedFuture() {
+    std::promise<void> promise;
+    promise.set_value();
+    return promise.get_future().share();
+}
+
 CompositorVk::CompositionFinishedWaitable CompositorVk::compose(
     const CompositionRequest& compositionRequest) {
+    auto targetCb = compositionRequest.target;
+    if (!targetCb) {
+        GFXSTREAM_ERROR("invalid target!");
+        return getCompletedFuture();
+    }
+    targetCb->invalidateForBackend(Backend::VK);
+    auto targetCbVk = targetCb->getColorBufferVk();
+    auto targetImageInfo = targetCbVk ? targetCbVk->prepareForComposition(true) : nullptr;
+    if (!targetImageInfo) {
+        GFXSTREAM_ERROR("failed to prepare target!");
+        return getCompletedFuture();
+    }
+
+    CompositionRequestVk compositionRequestVk;
+    compositionRequestVk.target = targetImageInfo.get();
+
+    std::vector<std::unique_ptr<ColorBufferVkImageInfo>> keepAliveImages;
+    keepAliveImages.push_back(std::move(targetImageInfo));
+
+    for (const CompositionRequestLayer& layer : compositionRequest.layers) {
+        CompositionRequestLayerVk layerVk;
+        layerVk.props = layer.props;
+
+        if (layer.props.composeMode == HWC2_COMPOSITION_DEVICE && layer.source) {
+            auto sourceCb = layer.source;
+            sourceCb->invalidateForBackend(Backend::VK);
+            auto sourceCbVk = sourceCb->getColorBufferVk();
+            auto sourceImageInfo = sourceCbVk ? sourceCbVk->prepareForComposition(false) : nullptr;
+            if (sourceImageInfo) {
+                layerVk.source = sourceImageInfo.get();
+                keepAliveImages.push_back(std::move(sourceImageInfo));
+            }
+        }
+        compositionRequestVk.layers.push_back(layerVk);
+    }
+
+    return compose(compositionRequestVk);
+}
+
+CompositorVk::CompositionFinishedWaitable CompositorVk::compose(
+    const CompositionRequestVk& compositionRequest) {
     static uint32_t sCompositionNumber = 0;
     const uint32_t thisCompositionNumber = sCompositionNumber++;
 
@@ -1418,14 +1456,21 @@ CompositorVk::CompositionFinishedWaitable CompositorVk::compose(
     std::vector<VkImageMemoryBarrier> preCompositionLayoutTransitionBarriers;
     std::vector<VkImageMemoryBarrier> postCompositionLayoutTransitionBarriers;
     std::vector<VkImageMemoryBarrier> postCompositionQueueTransferBarriers;
-    addNeededBarriersToUseBorrowedImage(
-        *compositionVk.targetImage, m_queueFamilyIndex, kTargetImageInitialLayoutUsed,
-        kTargetImageFinalLayoutUsed, VK_ACCESS_MEMORY_WRITE_BIT,
-        &preCompositionQueueTransferBarriers, &preCompositionLayoutTransitionBarriers,
-        &postCompositionLayoutTransitionBarriers, &postCompositionQueueTransferBarriers);
-    for (const BorrowedImageInfoVk* sourceImage : compositionVk.layersSourceImages) {
-        addNeededBarriersToUseBorrowedImage(
-            *sourceImage, m_queueFamilyIndex, kSourceImageInitialLayoutUsed,
+    {
+        const auto* targetImage = compositionVk.targetImage;
+        vk_util::addNeededBarriersToUseImage(
+            targetImage->image, targetImage->preBorrowQueueFamilyIndex,
+            targetImage->preBorrowLayout, targetImage->postBorrowQueueFamilyIndex,
+            targetImage->postBorrowLayout, m_queueFamilyIndex, kTargetImageInitialLayoutUsed,
+            kTargetImageFinalLayoutUsed, VK_ACCESS_MEMORY_WRITE_BIT,
+            &preCompositionQueueTransferBarriers, &preCompositionLayoutTransitionBarriers,
+            &postCompositionLayoutTransitionBarriers, &postCompositionQueueTransferBarriers);
+    }
+    for (const ColorBufferVkImageInfo* sourceImage : compositionVk.layersSourceImages) {
+        vk_util::addNeededBarriersToUseImage(
+            sourceImage->image, sourceImage->preBorrowQueueFamilyIndex,
+            sourceImage->preBorrowLayout, sourceImage->postBorrowQueueFamilyIndex,
+            sourceImage->postBorrowLayout, m_queueFamilyIndex, kSourceImageInitialLayoutUsed,
             kSourceImageFinalLayoutUsed, VK_ACCESS_SHADER_READ_BIT,
             &preCompositionQueueTransferBarriers, &preCompositionLayoutTransitionBarriers,
             &postCompositionLayoutTransitionBarriers, &postCompositionQueueTransferBarriers);

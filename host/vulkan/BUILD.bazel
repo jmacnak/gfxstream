@@ -59,7 +59,6 @@ cc_library(
 cc_library(
     name = "gfxstream_vulkan_server",
     srcs = [
-        "borrowed_image_vk.cpp",
         "buffer_vk.cpp",
         "color_buffer_vk.cpp",
         "compositor_vk.cpp",
@@ -91,7 +90,6 @@ cc_library(
         "vulkan_stream.cpp",
     ],
     hdrs = [
-        "borrowed_image_vk.h",
         "buffer_vk.h",
         "color_buffer_vk.h",
         "compositor_fragment_shader.h",

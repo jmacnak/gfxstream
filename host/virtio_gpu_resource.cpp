@@ -323,8 +323,8 @@ int VirtioGpuResource::ImportHandle(const struct stream_renderer_handle* handle,
     switch (handle->handle_type) {
 #if GFXSTREAM_ENABLE_HOST_GLES
         case STREAM_HANDLE_TYPE_PLATFORM_EGL_NATIVE_PIXMAP:
-            importSuccess = colorBufferPtr->glOpImportEglNativePixmap(
-                reinterpret_cast<void*>(handle->os_handle), preserveContent);
+            importSuccess = colorBufferPtr->importHandle(reinterpret_cast<void*>(handle->os_handle),
+                                                         preserveContent);
             break;
 #endif
         default:

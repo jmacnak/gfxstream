@@ -24,7 +24,6 @@
 
 #include "OpenGLESDispatch/DispatchTables.h"
 #include "OpenGLESDispatch/EGLDispatch.h"
-#include "borrowed_image_gl.h"
 #include "common/gl_utils.h"
 #include "debug_gl.h"
 #include "gfxstream/host/renderer_operations.h"
@@ -1352,16 +1351,6 @@ bool ColorBufferGl::importEglNativePixmap(void* pixmap, bool preserveContent) {
     }
 
     return true;
-}
-
-std::unique_ptr<BorrowedImageInfo> ColorBufferGl::getBorrowedImageInfo() {
-    auto info = std::make_unique<BorrowedImageInfoGl>();
-    info->id = mHndl;
-    info->width = m_width;
-    info->height = m_height;
-    info->texture = m_tex;
-    info->onCommandsIssued = [this]() { setSync(); };
-    return info;
 }
 
 }  // namespace gl

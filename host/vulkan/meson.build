@@ -9,7 +9,6 @@ subdir('cereal')
 subdir('emulated_textures')
 
 files_lib_vulkan_server = files(
-  'borrowed_image_vk.cpp',
   'buffer_vk.cpp',
   'color_buffer_vk.cpp',
   'compositor_vk.cpp',

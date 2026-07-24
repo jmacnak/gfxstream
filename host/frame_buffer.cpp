@@ -38,25 +38,26 @@
 #include "gl/glestranslator/egl/egl_global_info.h"
 #endif
 
-#include "host/gl/context_helper.h"
-#include "hwc2.h"
-#include "native_sub_window.h"
-#include "render_thread_info.h"
-#include "sync_thread.h"
-#include "gfxstream/shared_library.h"
+#include "color_buffer.h"
 #include "gfxstream/Tracing.h"
 #include "gfxstream/common/logging.h"
 #include "gfxstream/containers/Lookup.h"
-#include "gfxstream/host/tracing.h"
 #include "gfxstream/host/display_operations.h"
 #include "gfxstream/host/guest_operations.h"
 #include "gfxstream/host/renderer_operations.h"
 #include "gfxstream/host/stream_utils.h"
+#include "gfxstream/host/tracing.h"
 #include "gfxstream/host/vm_operations.h"
 #include "gfxstream/host/window_operations.h"
+#include "gfxstream/shared_library.h"
 #include "gfxstream/synchronization/Lock.h"
 #include "gfxstream/system/System.h"
+#include "host/gl/context_helper.h"
+#include "hwc2.h"
+#include "native_sub_window.h"
 #include "render-utils/MediaNative.h"
+#include "render_thread_info.h"
+#include "sync_thread.h"
 #include "vulkan/display_vk.h"
 #include "vulkan/post_worker_vk.h"
 #include "vulkan/vk_common_operations.h"
@@ -581,10 +582,6 @@ class FrameBuffer::Impl : public gfxstream::base::EventNotificationSupport<Frame
     void asyncWaitForGpuVulkanQsriWithCb(uint64_t image, FenceCompletionCallback cb);
 
     void setGuestManagedColorBufferLifetime(bool guestManaged);
-
-    std::unique_ptr<BorrowedImageInfo> borrowColorBufferForComposition(uint32_t colorBufferHandle,
-                                                                       bool colorBufferIsTarget);
-    std::unique_ptr<BorrowedImageInfo> borrowColorBufferForDisplay(uint32_t colorBufferHandle);
     void logVulkanDeviceLost();
 
     void setVsyncHz(int vsyncHz);
@@ -3833,48 +3830,6 @@ void FrameBuffer::Impl::setGuestManagedColorBufferLifetime(bool guestManaged) {
     m_guestManagedColorBufferLifetime = guestManaged;
 }
 
-std::unique_ptr<BorrowedImageInfo> FrameBuffer::Impl::borrowColorBufferForComposition(
-    uint32_t colorBufferHandle, bool colorBufferIsTarget) {
-    ColorBufferPtr colorBufferPtr = findColorBuffer(colorBufferHandle);
-    if (!colorBufferPtr) {
-        GFXSTREAM_ERROR("Failed to get borrowed image info for ColorBuffer:%d", colorBufferHandle);
-        return nullptr;
-    }
-
-    if (m_useVulkanComposition) {
-        invalidateColorBufferForVk(colorBufferHandle);
-    } else {
-#if GFXSTREAM_ENABLE_HOST_GLES
-        invalidateColorBufferForGl(colorBufferHandle);
-#endif
-    }
-
-    const auto api = m_useVulkanComposition ? ColorBuffer::UsedApi::kVk : ColorBuffer::UsedApi::kGl;
-    return colorBufferPtr->borrowForComposition(api, colorBufferIsTarget);
-}
-
-std::unique_ptr<BorrowedImageInfo> FrameBuffer::Impl::borrowColorBufferForDisplay(
-    uint32_t colorBufferHandle) {
-    ColorBufferPtr colorBufferPtr = findColorBuffer(colorBufferHandle);
-    if (!colorBufferPtr) {
-        GFXSTREAM_ERROR("Failed to get borrowed image info for ColorBuffer:%d", colorBufferHandle);
-        return nullptr;
-    }
-
-    if (m_useVulkanComposition) {
-        invalidateColorBufferForVk(colorBufferHandle);
-    } else {
-#if GFXSTREAM_ENABLE_HOST_GLES
-        invalidateColorBufferForGl(colorBufferHandle);
-#else
-        GFXSTREAM_ERROR("Failed to invalidate ColorBuffer:%d", colorBufferHandle);
-#endif
-    }
-
-    const auto api = m_useVulkanComposition ? ColorBuffer::UsedApi::kVk : ColorBuffer::UsedApi::kGl;
-    return colorBufferPtr->borrowForDisplay(api);
-}
-
 void FrameBuffer::Impl::logVulkanDeviceLost() {
     if (!m_emulationVk) {
         GFXSTREAM_FATAL("Device lost without VkEmulation?");
@@ -3991,7 +3946,7 @@ bool FrameBuffer::Impl::invalidateColorBufferForVk(HandleType colorBufferHandle)
         GFXSTREAM_ERROR("Failed to find ColorBuffer: %d", colorBufferHandle);
         return false;
     }
-    return colorBuffer->invalidateForVk();
+    return colorBuffer->invalidateForBackend(Backend::VK);
 }
 
 std::optional<BlobDescriptorInfo> FrameBuffer::Impl::exportColorBuffer(
@@ -4751,7 +4706,7 @@ bool FrameBuffer::Impl::invalidateColorBufferForGl(HandleType colorBufferHandle)
         GFXSTREAM_ERROR("Failed to find ColorBuffer: %d", colorBufferHandle);
         return false;
     }
-    return colorBuffer->invalidateForGl();
+    return colorBuffer->invalidateForBackend(Backend::GL);
 }
 
 ContextHelper* FrameBuffer::Impl::getPbufferSurfaceContextHelper() const {
@@ -5384,7 +5339,7 @@ int FrameBuffer::getColorBufferScreenshot(
 
 void FrameBuffer::onLastColorBufferRef(uint32_t handle) { mImpl->onLastColorBufferRef(handle); }
 
-ColorBufferPtr FrameBuffer::findColorBuffer(HandleType p_colorbuffer) {
+IColorBufferRef FrameBuffer::findColorBuffer(HandleType p_colorbuffer) {
     return mImpl->findColorBuffer(p_colorbuffer);
 }
 
@@ -5452,16 +5407,6 @@ void FrameBuffer::asyncWaitForGpuVulkanQsriWithCb(uint64_t image, FenceCompletio
 
 void FrameBuffer::setGuestManagedColorBufferLifetime(bool guestManaged) {
     mImpl->setGuestManagedColorBufferLifetime(guestManaged);
-}
-
-std::unique_ptr<BorrowedImageInfo> FrameBuffer::borrowColorBufferForComposition(
-    uint32_t colorBufferHandle, bool colorBufferIsTarget) {
-    return mImpl->borrowColorBufferForComposition(colorBufferHandle, colorBufferIsTarget);
-}
-
-std::unique_ptr<BorrowedImageInfo> FrameBuffer::borrowColorBufferForDisplay(
-    uint32_t colorBufferHandle) {
-    return mImpl->borrowColorBufferForDisplay(colorBufferHandle);
 }
 
 void FrameBuffer::setVsyncHz(int vsyncHz) { mImpl->setVsyncHz(vsyncHz); }

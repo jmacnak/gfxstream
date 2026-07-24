@@ -27,7 +27,6 @@
 #include "compositor_vk.h"
 #include "debug_utils_helper.h"
 #include "display_surface_vk.h"
-#include "gfxstream/host/borrowed_image.h"
 #include "gfxstream/host/display.h"
 #include "gfxstream/synchronization/Lock.h"
 #include "goldfish_vk_dispatch.h"
@@ -41,6 +40,8 @@ namespace gfxstream {
 namespace host {
 namespace vk {
 
+struct ColorBufferVkImageInfo;
+
 class DisplayVk : public Display {
    public:
     DisplayVk(const VulkanDispatch&, VkPhysicalDevice, VkDevice, CompositorVk* compositorVk,
@@ -52,7 +53,7 @@ class DisplayVk : public Display {
     ~DisplayVk();
 
     struct PostLayer {
-        const BorrowedImageInfo* info;
+        const ColorBufferVkImageInfo* info;
         float rotationDegrees;
         std::optional<std::array<float, 16>> colorTransform;
         hwc_rect_t displayFrame;
