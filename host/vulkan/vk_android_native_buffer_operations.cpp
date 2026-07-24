@@ -19,7 +19,7 @@
 #include "cereal/common/goldfish_vk_deepcopy.h"
 #include "cereal/common/goldfish_vk_extension_structs.h"
 #include "frame_buffer.h"
-#include "gfxstream/host/backend_callbacks.h"
+#include "gfxstream/host/global_state.h"
 #include "gfxstream/host/tracing.h"
 #include "goldfish_vk_private_defs.h"
 #include "gralloc_defs.h"
@@ -855,7 +855,7 @@ VkResult AndroidNativeBufferInfo::on_vkQueueSignalReleaseImageANDROID(
         VK_ANB_DEBUG_OBJ(this, "using native image, so use sync thread to wait");
         // Queue wait to sync thread with completion callback
         // Pass anbInfo by value to get a ref
-        auto waitable = emu->getCallbacks().scheduleAsyncWork(
+        auto waitable = emu->getGlobalState()->scheduleAsyncWork(
             [waitForQsriFenceTask = std::move(waitForQsriFenceTask), this]() mutable {
                 waitForQsriFenceTask();
                 mQsriTimeline->signalNextPresentAndPoll();
@@ -880,7 +880,7 @@ VkResult AndroidNativeBufferInfo::on_vkQueueSignalReleaseImageANDROID(
                             string_VkFormat(mVkFormat), mVkFormat);
         } else {
             const size_t bytesSize = bytesPerPixel * mExtent.width * mExtent.height;
-            emu->getCallbacks().flushColorBufferFromBytes(mColorBufferHandle, bytes, bytesSize);
+            emu->getGlobalState()->flushColorBufferFromBytes(mColorBufferHandle, bytes, bytesSize);
         }
 
         mQsriTimeline->signalNextPresentAndPoll();
