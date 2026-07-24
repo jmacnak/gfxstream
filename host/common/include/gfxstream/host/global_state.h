@@ -18,6 +18,7 @@
 #include <string>
 
 #include "gfxstream/CancelableFuture.h"
+#include "gfxstream/host/color_buffer_interface.h"
 
 namespace gfxstream {
 namespace host {
@@ -26,12 +27,26 @@ class GlobalState {
    public:
     virtual ~GlobalState() = default;
 
+    virtual IColorBufferRef findColorBuffer(uint32_t colorBufferHandle) = 0;
+
     virtual void registerProcessCleanupCallback(void* key, uint64_t contextId,
                                                 std::function<void()> callback) = 0;
     virtual void unregisterProcessCleanupCallback(void* key) = 0;
 
     virtual void lockGlobalState() = 0;
     virtual void unlockGlobalState() = 0;
+
+    virtual int getColorBufferScreenshot(
+        IColorBuffer* cb, int targetWidth, int targetHeight, int skinRotation,
+        GfxstreamFormat pixelsFormat, void* outPixels, const Rect& rect,
+        const std::optional<std::array<float, 16>>& colorTransform) = 0;
+
+    virtual float getDpr() const = 0;
+    virtual int windowWidth() const = 0;
+    virtual int windowHeight() const = 0;
+    virtual float getPx() const = 0;
+    virtual float getPy() const = 0;
+    virtual int getZrot() const = 0;
 
     virtual void invalidateColorBuffer(uint32_t colorBufferHandle) = 0;
     virtual void flushColorBuffer(uint32_t colorBufferHandle) = 0;
