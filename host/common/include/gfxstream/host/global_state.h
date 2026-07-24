@@ -30,6 +30,9 @@ class GlobalState {
                                                 std::function<void()> callback) = 0;
     virtual void unregisterProcessCleanupCallback(void* key) = 0;
 
+    virtual void lockGlobalState() = 0;
+    virtual void unlockGlobalState() = 0;
+
     virtual void invalidateColorBuffer(uint32_t colorBufferHandle) = 0;
     virtual void flushColorBuffer(uint32_t colorBufferHandle) = 0;
     virtual void flushColorBufferFromBytes(uint32_t colorBufferHandle, const void* bytes,
