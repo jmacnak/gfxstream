@@ -48,6 +48,10 @@ class GlobalState {
     virtual float getPy() const = 0;
     virtual int getZrot() const = 0;
 
+    virtual void postLoadRenderThreadContextSurfacePtrs() = 0;
+    virtual bool bindContext(uint32_t p_context, uint32_t p_drawSurface,
+                             uint32_t p_readSurface) = 0;
+
     virtual void invalidateColorBuffer(uint32_t colorBufferHandle) = 0;
     virtual void flushColorBuffer(uint32_t colorBufferHandle) = 0;
     virtual void flushColorBufferFromBytes(uint32_t colorBufferHandle, const void* bytes,

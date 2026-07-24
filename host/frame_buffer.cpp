@@ -684,7 +684,7 @@ class FrameBuffer::Impl : public gfxstream::base::EventNotificationSupport<Frame
     // host buffers when a guest application crashes, for example.
     void drainGlRenderThreadSurfaces();
 
-    void postLoadRenderThreadContextSurfacePtrs();
+    void postLoadRenderThreadContextSurfacePtrs() override;
 
     gl::EmulationGl& getEmulationGl();
     bool hasEmulationGl() const { return m_emulationGl != nullptr; }
@@ -764,7 +764,8 @@ class FrameBuffer::Impl : public gfxstream::base::EventNotificationSupport<Frame
     // of the context, the draw surface and the read surface, respectively.
     // Returns true on success, false on failure.
     // Note: if all handle values are 0, this is an unbind operation.
-    bool bindContext(HandleType p_context, HandleType p_drawSurface, HandleType p_readSurface);
+    bool bindContext(HandleType p_context, HandleType p_drawSurface,
+                     HandleType p_readSurface) override;
 
     // create a Y texture and a UV texture with width and height, the created
     // texture ids are stored in textures respectively
@@ -5100,6 +5101,8 @@ void FrameBuffer::finalize() {
 
 /*static*/
 FrameBuffer* FrameBuffer::getFB() { return sFrameBuffer; }
+
+GlobalState* FrameBuffer::getGlobalState() { return mImpl.get(); }
 
 bool FrameBuffer::setupSubWindow(FBNativeWindowType p_window, int wx, int wy, int ww, int wh,
                                  int fbw, int fbh, float dpr, float zRot, bool deleteExisting,
