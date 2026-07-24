@@ -22,6 +22,8 @@
 
 #include <iomanip>
 
+#include "gfxstream/host/global_state.h"
+
 #if defined(__linux__)
 #include <sys/resource.h>
 #endif
@@ -361,7 +363,8 @@ typedef std::unordered_map<uint64_t, ColorBufferSet> ProcOwnedColorBuffers;
 typedef std::unordered_map<void*, std::function<void()>> CallbackMap;
 typedef std::unordered_map<uint64_t, CallbackMap> ProcOwnedCleanupCallbacks;
 
-class FrameBuffer::Impl : public gfxstream::base::EventNotificationSupport<FrameBufferChangeEvent> {
+class FrameBuffer::Impl : public gfxstream::base::EventNotificationSupport<FrameBufferChangeEvent>,
+                          public GlobalState {
    public:
     static std::unique_ptr<Impl> Create(FrameBuffer* framebuffer, uint32_t width, uint32_t height,
                                         const FeatureSet& features, bool useSubWindow);
@@ -518,8 +521,8 @@ class FrameBuffer::Impl : public gfxstream::base::EventNotificationSupport<Frame
 
     void setDisplayLayout(int screenWidth, int screenHeight, const Rect& displayRect);
 
-    void registerVulkanInstance(uint64_t id, const char* appName) const;
-    void unregisterVulkanInstance(uint64_t id) const;
+    void registerVulkanInstance(uint64_t id, const char* appName) const override;
+    void unregisterVulkanInstance(uint64_t id) const override;
 
     bool isVulkanEnabled() const { return m_vulkanEnabled; }
 
@@ -558,8 +561,15 @@ class FrameBuffer::Impl : public gfxstream::base::EventNotificationSupport<Frame
     BufferPtr findBuffer(HandleType p_buffer);
 
     void registerProcessCleanupCallback(void* key, uint64_t contextId,
-                                        std::function<void()> callback);
-    void unregisterProcessCleanupCallback(void* key);
+                                        std::function<void()> callback) override;
+    void unregisterProcessCleanupCallback(void* key) override;
+
+    void invalidateColorBuffer(uint32_t colorBufferHandle) override;
+    void flushColorBuffer(uint32_t colorBufferHandle) override;
+    void flushColorBufferFromBytes(uint32_t colorBufferHandle, const void* bytes,
+                                   size_t bytesSize) override;
+    CancelableFuture scheduleAsyncWork(std::function<void()> work,
+                                       std::string description) override;
 
     const ProcessResources* getProcessResources(uint64_t puid);
 
@@ -1244,48 +1254,7 @@ std::unique_ptr<FrameBuffer::Impl> FrameBuffer::Impl::Create(FrameBuffer* frameb
     if (impl->m_features.Vulkan.enabled()) {
         vkDispatch = vk::vkDispatch(false /* not for testing */);
 
-        gfxstream::host::BackendCallbacks callbacks{
-            .registerProcessCleanupCallback =
-                [impl = impl.get()](void* key, uint64_t contextId, std::function<void()> callback) {
-                    impl->registerProcessCleanupCallback(key, contextId, callback);
-                },
-            .unregisterProcessCleanupCallback =
-                [impl = impl.get()](void* key) { impl->unregisterProcessCleanupCallback(key); },
-            .invalidateColorBuffer =
-                [impl = impl.get()](uint32_t colorBufferHandle) {
-                    impl->invalidateColorBufferForVk(colorBufferHandle);
-                },
-            .flushColorBuffer =
-                [impl = impl.get()](uint32_t colorBufferHandle) {
-                    impl->flushColorBufferFromVk(colorBufferHandle);
-                },
-            .flushColorBufferFromBytes =
-                [impl = impl.get()](uint32_t colorBufferHandle, const void* bytes,
-                                    size_t bytesSize) {
-                    impl->flushColorBufferFromVkBytes(colorBufferHandle, bytes, bytesSize);
-                },
-            .scheduleAsyncWork =
-                [impl = impl.get()](std::function<void()> work, std::string description) {
-                    auto promise = std::make_shared<AutoCancelingPromise>();
-                    auto future = promise->GetFuture();
-                    SyncThread::get()->triggerGeneral(
-                        [promise = std::move(promise), work = std::move(work)]() mutable {
-                            work();
-                            promise->MarkComplete();
-                        },
-                        description);
-                    return future;
-                },
-#ifdef CONFIG_AEMU
-            .registerVulkanInstance =
-                [impl = impl.get()](uint64_t id, const char* appName) {
-                    impl->registerVulkanInstance(id, appName);
-                },
-            .unregisterVulkanInstance =
-                [impl = impl.get()](uint64_t id) { impl->unregisterVulkanInstance(id); },
-#endif
-        };
-        impl->m_emulationVk = vk::VkEmulation::create(vkDispatch, callbacks, impl->m_features);
+        impl->m_emulationVk = vk::VkEmulation::create(vkDispatch, impl.get(), impl->m_features);
         if (!impl->m_emulationVk) {
             GFXSTREAM_ERROR(
                 "Failed to initialize global Vulkan emulation requested. Try updating your GPU "
@@ -3734,6 +3703,32 @@ void FrameBuffer::Impl::unregisterProcessCleanupCallback(void* key) {
     }
 }
 
+void FrameBuffer::Impl::invalidateColorBuffer(uint32_t colorBufferHandle) {
+    invalidateColorBufferForVk(colorBufferHandle);
+}
+
+void FrameBuffer::Impl::flushColorBuffer(uint32_t colorBufferHandle) {
+    flushColorBufferFromVk(colorBufferHandle);
+}
+
+void FrameBuffer::Impl::flushColorBufferFromBytes(uint32_t colorBufferHandle, const void* bytes,
+                                                  size_t bytesSize) {
+    flushColorBufferFromVkBytes(colorBufferHandle, bytes, bytesSize);
+}
+
+CancelableFuture FrameBuffer::Impl::scheduleAsyncWork(std::function<void()> work,
+                                                      std::string description) {
+    auto promise = std::make_shared<AutoCancelingPromise>();
+    auto future = promise->GetFuture();
+    SyncThread::get()->triggerGeneral(
+        [promise = std::move(promise), work = std::move(work)]() mutable {
+            work();
+            promise->MarkComplete();
+        },
+        description);
+    return future;
+}
+
 const ProcessResources* FrameBuffer::Impl::getProcessResources(uint64_t puid) {
     {
         AutoLock mutex(m_procOwnedResourcesLock);
@@ -4072,6 +4067,9 @@ void FrameBuffer::Impl::registerVulkanInstance(uint64_t id, const char* appName)
 void FrameBuffer::Impl::unregisterVulkanInstance(uint64_t id) const {
     get_gfxstream_vm_operations().unregister_vulkan_instance(id);
 }
+#else
+void FrameBuffer::Impl::registerVulkanInstance(uint64_t id, const char* appName) const {}
+void FrameBuffer::Impl::unregisterVulkanInstance(uint64_t id) const {}
 #endif
 
 void FrameBuffer::Impl::createTrivialContext(HandleType shared, HandleType* contextOut,

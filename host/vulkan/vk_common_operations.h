@@ -33,10 +33,10 @@
 #include "gfxstream/ThreadAnnotations.h"
 #include "gfxstream/host/GfxApiLogger.h"
 #include "gfxstream/host/RenderDoc.h"
-#include "gfxstream/host/backend_callbacks.h"
 #include "gfxstream/host/external_object_manager.h"
 #include "gfxstream/host/features.h"
 #include "gfxstream/host/gfxstream_format.h"
+#include "gfxstream/host/global_state.h"
 #include "gfxstream/host/vk_enums.h"
 #include "gfxstream/memory/UdmabufCreator.h"
 #include "goldfish_vk_private_defs.h"
@@ -96,7 +96,7 @@ class VkEmulation {
     ~VkEmulation();
 
     static std::unique_ptr<VkEmulation> create(VulkanDispatch* vk,
-                                               gfxstream::host::BackendCallbacks callbacks,
+                                               gfxstream::host::GlobalState* globalState,
                                                const gfxstream::host::FeatureSet& features);
 
     struct Features {
@@ -171,7 +171,7 @@ class VkEmulation {
 
     const gfxstream::host::FeatureSet& getFeatures() const;
 
-    const gfxstream::host::BackendCallbacks& getCallbacks() const;
+    gfxstream::host::GlobalState* getGlobalState() const;
 
     AstcEmulationMode getAstcLdrEmulationMode() const;
 
@@ -572,7 +572,7 @@ class VkEmulation {
 
     std::mutex mMutex;
 
-    gfxstream::host::BackendCallbacks mCallbacks;
+    gfxstream::host::GlobalState* m_globalState = nullptr;
 
     gfxstream::host::FeatureSet mFeatures;
 

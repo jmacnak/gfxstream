@@ -1217,8 +1217,8 @@ class VkDecoderGlobalState::Impl {
                        info.applicationName.c_str(), info.engineName.c_str());
 
 #ifdef CONFIG_AEMU
-        m_vkEmulation->getCallbacks().registerVulkanInstance((uint64_t)*pInstance,
-                                                             info.applicationName.c_str());
+        m_vkEmulation->getGlobalState()->registerVulkanInstance((uint64_t)*pInstance,
+                                                                info.applicationName.c_str());
 #endif
         // Box it up
         VkInstance boxed = new_boxed_VkInstance(*pInstance, nullptr);
@@ -1241,7 +1241,7 @@ class VkDecoderGlobalState::Impl {
         *pInstance = (VkInstance)info.boxed;
 
         if (vkCleanupEnabled()) {
-            m_vkEmulation->getCallbacks().registerProcessCleanupCallback(
+            m_vkEmulation->getGlobalState()->registerProcessCleanupCallback(
                 unbox_VkInstance(boxed), info.contextId, [this, boxed] {
                     if (snapshotsEnabled()) {
                         snapshot()->vkDestroyInstance(nullptr, kInvalidSnapshotApiCallHandle, nullptr, 0, boxed, nullptr);
@@ -1300,7 +1300,7 @@ class VkDecoderGlobalState::Impl {
         }
         // The instance should not be used after vkDestroyInstanceImpl is called,
         // remove it from the cleanup callback mapping.
-        m_vkEmulation->getCallbacks().unregisterProcessCleanupCallback(instance);
+        m_vkEmulation->getGlobalState()->unregisterProcessCleanupCallback(instance);
 
         vkDestroyInstanceImpl(instance);
     }
@@ -6315,7 +6315,7 @@ class VkDecoderGlobalState::Impl {
                 shouldUseDedicatedAllocInfo &= colorBufferMemoryUsesDedicatedAlloc;
 
                 if (!m_vkEmulation->getFeatures().GuestVulkanOnly.enabled()) {
-                    m_vkEmulation->getCallbacks().invalidateColorBuffer(
+                    m_vkEmulation->getGlobalState()->invalidateColorBuffer(
                         importCbInfoPtr->colorBuffer);
                 }
 
@@ -7785,7 +7785,7 @@ class VkDecoderGlobalState::Impl {
         }
 
         for (HandleType cb : acquiredColorBuffers) {
-            m_vkEmulation->getCallbacks().invalidateColorBuffer(cb);
+            m_vkEmulation->getGlobalState()->invalidateColorBuffer(cb);
         }
 
         if (m_vkEmulation->getFeatures().VulkanDisableCoherentMemoryAndEmulate.enabled()) {
@@ -7952,7 +7952,7 @@ class VkDecoderGlobalState::Impl {
                                     string_VkResult(result), result);
                 } else {
                     for (HandleType cb : releasedColorBuffers) {
-                        m_vkEmulation->getCallbacks().flushColorBuffer(cb);
+                        m_vkEmulation->getGlobalState()->flushColorBuffer(cb);
                     }
                 }
             } else {
@@ -10802,7 +10802,7 @@ class VkDecoderGlobalState::Impl {
                        instanceInfo.applicationName.c_str(), instanceInfo.engineName.c_str());
 
 #ifdef CONFIG_AEMU
-        m_vkEmulation->getCallbacks().unregisterVulkanInstance((uint64_t)instance);
+        m_vkEmulation->getGlobalState()->unregisterVulkanInstance((uint64_t)instance);
 #endif
         delete_VkInstance(instanceInfo.boxed);
         LOG_CALLS_VERBOSE("destroyInstanceObjects: finished.");

@@ -769,9 +769,8 @@ int VkEmulation::getSelectedGpuIndex(
     return selectedGpuIndex;
 }
 
-/*static*/
 std::unique_ptr<VkEmulation> VkEmulation::create(VulkanDispatch* gvk,
-                                                 gfxstream::host::BackendCallbacks callbacks,
+                                                 gfxstream::host::GlobalState* globalState,
                                                  const gfxstream::host::FeatureSet& features) {
     if (!vkDispatchValid(gvk)) {
         GFXSTREAM_ERROR("Dispatch is invalid.");
@@ -782,7 +781,7 @@ std::unique_ptr<VkEmulation> VkEmulation::create(VulkanDispatch* gvk,
 
     std::lock_guard<std::mutex> lock(emulation->mMutex);
 
-    emulation->mCallbacks = callbacks;
+    emulation->m_globalState = globalState;
     emulation->mGvk = gvk;
     emulation->setFeatures(features);
 
@@ -1914,7 +1913,7 @@ void VkEmulation::setFeatures(const gfxstream::host::FeatureSet& features) {
 #endif
 }
 
-const gfxstream::host::BackendCallbacks& VkEmulation::getCallbacks() const { return mCallbacks; }
+gfxstream::host::GlobalState* VkEmulation::getGlobalState() const { return m_globalState; }
 
 AstcEmulationMode VkEmulation::getAstcLdrEmulationMode() const { return mAstcLdrEmulationMode; }
 
