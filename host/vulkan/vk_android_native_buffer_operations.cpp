@@ -18,7 +18,6 @@
 
 #include "cereal/common/goldfish_vk_deepcopy.h"
 #include "cereal/common/goldfish_vk_extension_structs.h"
-#include "frame_buffer.h"
 #include "gfxstream/host/global_state.h"
 #include "gfxstream/host/tracing.h"
 #include "goldfish_vk_private_defs.h"
@@ -674,8 +673,7 @@ VkResult AndroidNativeBufferInfo::on_vkQueueSignalReleaseImageANDROID(
     GFXSTREAM_TRACE_EVENT(GFXSTREAM_TRACE_DEFAULT_CATEGORY, "vkQSRI syncImageToColorBuffer()",
                           GFXSTREAM_TRACE_FLOW(traceId));
 
-    auto fb = FrameBuffer::getFB();
-    fb->lock();
+    emu->getGlobalState()->lockGlobalState();
 
     // Implicitly synchronized
     *pNativeFenceFd = -1;
@@ -849,7 +847,7 @@ VkResult AndroidNativeBufferInfo::on_vkQueueSignalReleaseImageANDROID(
         VK_ANB_DEBUG_OBJ(this, "wait callback: wait for fence %p...(done)", qsriFence);
         mQsriWaitFencePool->returnFence(qsriFence);
     };
-    fb->unlock();
+    emu->getGlobalState()->unlockGlobalState();
 
     if (mUseVulkanNativeImage) {
         VK_ANB_DEBUG_OBJ(this, "using native image, so use sync thread to wait");

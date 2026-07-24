@@ -564,6 +564,9 @@ class FrameBuffer::Impl : public gfxstream::base::EventNotificationSupport<Frame
                                         std::function<void()> callback) override;
     void unregisterProcessCleanupCallback(void* key) override;
 
+    void lockGlobalState() override;
+    void unlockGlobalState() override;
+
     void invalidateColorBuffer(uint32_t colorBufferHandle) override;
     void flushColorBuffer(uint32_t colorBufferHandle) override;
     void flushColorBufferFromBytes(uint32_t colorBufferHandle, const void* bytes,
@@ -3658,24 +3661,26 @@ void FrameBuffer::Impl::lock() { m_lock.lock(); }
 
 void FrameBuffer::Impl::unlock() { m_lock.unlock(); }
 
+void FrameBuffer::Impl::lockGlobalState() NO_THREAD_SAFETY_ANALYSIS { lock(); }
+
+void FrameBuffer::Impl::unlockGlobalState() NO_THREAD_SAFETY_ANALYSIS { unlock(); }
+
 ColorBufferPtr FrameBuffer::Impl::findColorBuffer(HandleType p_colorbuffer) {
     AutoLock colorBufferMapLock(m_colorBufferMapLock);
-    auto c = m_colorbuffers.find(p_colorbuffer);
-    if (c == m_colorbuffers.end()) {
+    auto it = m_colorbuffers.find(p_colorbuffer);
+    if (it == m_colorbuffers.end()) {
         return nullptr;
-    } else {
-        return std::dynamic_pointer_cast<ColorBuffer>(c->second.cb);
     }
+    return std::dynamic_pointer_cast<ColorBuffer>(it->second.cb);
 }
 
 BufferPtr FrameBuffer::Impl::findBuffer(HandleType p_buffer) {
     AutoLock colorBufferMapLock(m_colorBufferMapLock);
-    BufferMap::iterator b(m_buffers.find(p_buffer));
-    if (b == m_buffers.end()) {
+    auto it = m_buffers.find(p_buffer);
+    if (it == m_buffers.end()) {
         return nullptr;
-    } else {
-        return b->second.buffer;
     }
+    return it->second.buffer;
 }
 
 void FrameBuffer::Impl::registerProcessCleanupCallback(void* key, uint64_t contextId,
