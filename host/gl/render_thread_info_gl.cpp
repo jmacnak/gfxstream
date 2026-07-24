@@ -16,13 +16,13 @@
 
 #include <unordered_set>
 
-#include "frame_buffer.h"
 #include "OpenGLESDispatch/EGLDispatch.h"
 #include "OpenGLESDispatch/GLESv1Dispatch.h"
 #include "OpenGLESDispatch/GLESv2Dispatch.h"
-#include "gfxstream/synchronization/Lock.h"
 #include "gfxstream/containers/Lookup.h"
+#include "gfxstream/host/global_state.h"
 #include "gfxstream/host/stream_utils.h"
+#include "gfxstream/synchronization/Lock.h"
 
 namespace gfxstream {
 namespace host {
@@ -34,7 +34,8 @@ using gfxstream::Stream;
 
 static thread_local RenderThreadInfoGl* tlThreadInfo = nullptr;
 
-RenderThreadInfoGl::RenderThreadInfoGl() {
+RenderThreadInfoGl::RenderThreadInfoGl(gfxstream::host::GlobalState* globalState)
+    : m_globalState(globalState) {
     m_glDec.initGL(gles1_dispatch_get_proc_func, nullptr);
     m_gl2Dec.initGL(gles2_dispatch_get_proc_func, nullptr);
 
@@ -84,8 +85,7 @@ void RenderThreadInfoGl::onSave(Stream* stream) {
 }
 
 bool RenderThreadInfoGl::onLoad(Stream* stream) {
-    FrameBuffer* fb = FrameBuffer::getFB();
-    assert(fb);
+    assert(m_globalState);
 
     HandleType ctxHndl = stream->getBe32();
     HandleType drawSurf = stream->getBe32();
@@ -95,7 +95,7 @@ bool RenderThreadInfoGl::onLoad(Stream* stream) {
     currDrawSurfHandleFromLoad = drawSurf;
     currReadSurfHandleFromLoad = readSurf;
 
-    fb->postLoadRenderThreadContextSurfacePtrs();
+    m_globalState->postLoadRenderThreadContextSurfacePtrs();
 
     loadCollection(stream, &m_contextSet, [](Stream* stream) {
         return stream->getBe32();
@@ -113,15 +113,14 @@ bool RenderThreadInfoGl::onLoad(Stream* stream) {
 }
 
 void RenderThreadInfoGl::postLoadRefreshCurrentContextSurfacePtrs() {
-    FrameBuffer* fb = FrameBuffer::getFB();
-    assert(fb);
+    assert(m_globalState);
 
-    fb->postLoadRenderThreadContextSurfacePtrs();
+    m_globalState->postLoadRenderThreadContextSurfacePtrs();
 
     const HandleType ctx = currContext ? currContext->getHndl() : 0;
     const HandleType draw = currDrawSurf ? currDrawSurf->getHndl() : 0;
     const HandleType read = currReadSurf ? currReadSurf->getHndl() : 0;
-    fb->bindContext(ctx, draw, read);
+    m_globalState->bindContext(ctx, draw, read);
 }
 
 }  // namespace gl

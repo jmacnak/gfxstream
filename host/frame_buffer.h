@@ -60,6 +60,8 @@
 namespace gfxstream {
 namespace host {
 
+class GlobalState;
+
 // The FrameBuffer class holds the global state of the emulation library on
 // top of the underlying EGL/GLES implementation. It should probably be
 // named "Display" instead of "FrameBuffer".
@@ -112,6 +114,8 @@ class FrameBuffer : public gfxstream::base::EventNotificationSupport<FrameBuffer
     // Return a pointer to the global instance. initialize() must be called
     // previously, or this will return NULL.
     static FrameBuffer* getFB();
+
+    gfxstream::host::GlobalState* getGlobalState();
 
     // Wait for a FrameBuffer instance to be initialized and ready to use.
     // This function blocks the caller until there is a valid initialized

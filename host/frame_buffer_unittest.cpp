@@ -104,7 +104,7 @@ class FrameBufferTest : public ::testing::Test {
         EXPECT_EQ(EGL_SUCCESS, egl->eglGetError());
 
         mRenderThreadInfo = new RenderThreadInfo();
-        mRenderThreadInfo->initGl();
+        mRenderThreadInfo->initGl(mFb->getGlobalState());
     }
 
     virtual void TearDown() override {
