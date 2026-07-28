@@ -70,6 +70,7 @@ cc_library(
         "channel_stream.cpp",
         "channel_stream.h",
         "color_buffer.cpp",
+        "color_buffer.h",
         "frame_buffer.cpp",
         "post_worker.cpp",
         "post_worker_gl.cpp",
