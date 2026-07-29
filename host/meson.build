@@ -62,7 +62,6 @@ files_lib_gfxstream_backend = files(
   'channel_stream.cpp',
   'color_buffer.cpp',
   'frame_buffer.cpp',
-  'post_worker.cpp',
   'read_buffer.cpp',
   'render_api.cpp',
   'render_channel_impl.cpp',
@@ -104,7 +103,6 @@ inc_gl_openglesdispatch = include_directories('gl/OpenGLESDispatch/include')
 if use_gles
   subdir('gl')
 
-  files_lib_gfxstream_backend += files('post_worker_gl.cpp')
   files_lib_gfxstream_backend += files('render_control.cpp')
 
   inc_gfxstream_backend += [
