@@ -19,6 +19,7 @@
 #include "OpenGLESDispatch/EGLDispatch.h"
 #include "OpenGLESDispatch/GLESv1Dispatch.h"
 #include "OpenGLESDispatch/GLESv2Dispatch.h"
+#include "emulation_gl.h"
 #include "gfxstream/containers/Lookup.h"
 #include "gfxstream/host/global_state.h"
 #include "gfxstream/host/stream_utils.h"
