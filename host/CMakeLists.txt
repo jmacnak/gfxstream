@@ -47,7 +47,6 @@ add_subdirectory(common)
 add_subdirectory(features)
 add_subdirectory(iostream)
 add_subdirectory(library)
-add_subdirectory(snapshot)
 add_subdirectory(tracing)
 add_subdirectory(decoder_common)
 add_subdirectory(compressed_textures)
@@ -63,7 +62,6 @@ target_link_libraries(
     INTERFACE
     gfxstream_features.headers
     gfxstream_host_decoder_common
-    gfxstream_host_snapshot.headers
     gfxstream_host_renderdoc
     )
 target_include_directories(
@@ -127,7 +125,6 @@ target_link_libraries(
         gfxstream_host_iostream
         gfxstream_host_library
         gfxstream_host_renderdoc
-        gfxstream_host_snapshot.headers
         gfxstream_host_tracing
         gfxstream_opengl_headers
         gfxstream_openglesdispatch
