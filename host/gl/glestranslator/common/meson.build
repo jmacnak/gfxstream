@@ -39,7 +39,6 @@ lib_gl_common = static_library(
     inc_host_decoder_common,
     inc_host_library,
     inc_common_logging,
-    inc_host_snapshot,
     inc_include,
     inc_stream_servers,
   ],

@@ -57,7 +57,6 @@ lib_gl_server = static_library(
     inc_host_iostream,
     inc_host_library,
     inc_host_renderdoc,
-    inc_host_snapshot,
     inc_include,
     inc_opengl_headers,
     inc_renderdoc_external,
