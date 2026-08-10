@@ -1177,7 +1177,10 @@ int VirtioGpuFrontend::restoreRenderer(const char* directory) {
         GFXSTREAM_ERROR("Failed to restore renderer: renderer not available.");
         return -EINVAL;
     }
-    mRenderer->load(&stream, nullptr);
+    if (!mRenderer->load(&stream, nullptr)) {
+        GFXSTREAM_ERROR("Failed to restore renderer: mRenderer->load failed.");
+        return -1;
+    }
 
     return 0;
 }
