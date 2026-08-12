@@ -174,7 +174,6 @@ static constexpr const char* const kEmulatedInstanceExtensions[] = {
 static constexpr uint64_t kPageSizeforBlob = 4096;
 static constexpr uint64_t kPageMaskForBlob = ~(0xfff);
 
-static std::atomic<uint64_t> sNextHostBlobId{1};
 static std::atomic<uint64_t> sUniqueShmemId = 0;
 
 static bool isDescriptorTypeImageInfo(VkDescriptorType descType) {
@@ -590,25 +589,38 @@ class VkDecoderGlobalState::Impl {
             }
         }
 
+        stream->putBe64(mNextHostBlobId.load());
+
         snapshot()->saveReplayBuffers(stream);
 
-        // Save mapped memory
+        // Save mapped memory and host blob ids
         uint32_t memoryCount = 0;
         for (const auto& it : mMemoryInfo) {
-            if (it.second.ptr) {
+            if (it.second.ptr || it.second.hostmemId) {
                 memoryCount++;
             }
         }
-        GFXSTREAM_DEBUG("snapshot save: mapped memory");
+        GFXSTREAM_DEBUG("snapshot save: mapped memory and host blob ids");
         stream->putBe32(memoryCount);
         for (const auto& it : mMemoryInfo) {
-            if (!it.second.ptr) {
+            if (!it.second.ptr && !it.second.hostmemId) {
                 continue;
             }
             stream->putBe64(reinterpret_cast<uint64_t>(
                 unboxed_to_boxed_non_dispatchable_VkDeviceMemory(it.first)));
-            stream->putBe64(it.second.size);
-            stream->write(it.second.ptr, it.second.size);
+
+            bool hasPtr = it.second.ptr != nullptr;
+            stream->putByte(hasPtr ? 1 : 0);
+            if (hasPtr) {
+                stream->putBe64(it.second.size);
+                stream->write(it.second.ptr, it.second.size);
+            }
+
+            bool hasHostmemId = it.second.hostmemId != 0;
+            stream->putByte(hasHostmemId ? 1 : 0);
+            if (hasHostmemId) {
+                stream->putBe64(it.second.hostmemId);
+            }
         }
 
         // Set up VK structs to snapshot other Vulkan objects
@@ -901,6 +913,9 @@ class VkDecoderGlobalState::Impl {
             }
         }
 
+        GFXSTREAM_DEBUG("snapshot load: host blob id counter");
+        mNextHostBlobId.store(stream->getBe64());
+
         // Replay command stream:
         GFXSTREAM_DEBUG("snapshot load: replay command stream");
         {
@@ -934,8 +949,8 @@ class VkDecoderGlobalState::Impl {
         {
             std::lock_guard<std::mutex> lock(mMutex);
 
-            // load mapped memory
-            GFXSTREAM_DEBUG("snapshot load: mapped memory");
+            // load mapped memory and host blob ids
+            GFXSTREAM_DEBUG("snapshot load: mapped memory and host blob ids");
             uint32_t memoryCount = stream->getBe32();
             for (uint32_t i = 0; i < memoryCount; i++) {
                 VkDeviceMemory boxedMemory = reinterpret_cast<VkDeviceMemory>(stream->getBe64());
@@ -945,13 +960,47 @@ class VkDecoderGlobalState::Impl {
                     GFXSTREAM_ERROR("Snapshot load failure: cannot find memory handle for VkDeviceMemory:%p", boxedMemory);
                     return false;
                 }
-                VkDeviceSize size = stream->getBe64();
-                if (size != it->second.size || !it->second.ptr) {
-                    GFXSTREAM_ERROR("Snapshot load failure: memory size does not match for VkDeviceMemory:%p", boxedMemory);
-                    return false;
+
+                bool hasPtr = stream->getByte() != 0;
+                if (hasPtr) {
+                    VkDeviceSize size = stream->getBe64();
+                    if (size != it->second.size || !it->second.ptr) {
+                        GFXSTREAM_ERROR(
+                            "Snapshot load failure: memory size does not match for "
+                            "VkDeviceMemory:%p",
+                            boxedMemory);
+                        return false;
+                    }
+                    stream->read(it->second.ptr, size);
                 }
-                stream->read(it->second.ptr, size);
+
+                bool hasHostmemId = stream->getByte() != 0;
+                if (hasHostmemId) {
+                    uint64_t hostBlobId = stream->getBe64();
+                    if (!it->second.ptr) {
+                        GFXSTREAM_ERROR(
+                            "Snapshot load failure: cannot find mapped memory for host blob "
+                            "id %" PRIu64,
+                            hostBlobId);
+                        return false;
+                    }
+                    auto ctxIdOpt = getContextIdForDeviceLocked(it->second.device);
+                    if (!ctxIdOpt) {
+                        GFXSTREAM_ERROR(
+                            "Snapshot load failure: missing context id for host blob id %" PRIu64,
+                            hostBlobId);
+                        return false;
+                    }
+                    if (it->second.hostmemId) {
+                        ExternalObjectManager::get()->removeMapping(*ctxIdOpt,
+                                                                    it->second.hostmemId);
+                    }
+                    it->second.hostmemId = hostBlobId;
+                    ExternalObjectManager::get()->addMapping(*ctxIdOpt, hostBlobId, it->second.ptr,
+                                                             it->second.caching);
+                }
             }
+
             // Set up VK structs to snapshot other Vulkan objects
             // TODO(b/323064243): group all images from the same device and reuse queue / command
             // pool
@@ -7700,7 +7749,7 @@ class VkDecoderGlobalState::Impl {
                                                  VkSnapshotApiCallHandle, VkDevice boxed_device,
                                                  VkDeviceMemory memory, uint64_t* pAddress,
                                                  uint64_t* pSize, uint64_t* pHostmemId) {
-        uint64_t hostBlobId = sNextHostBlobId++;
+        uint64_t hostBlobId = mNextHostBlobId++;
         *pHostmemId = hostBlobId;
         return vkGetBlobInternal(boxed_device, memory, hostBlobId);
     }
@@ -11368,6 +11417,8 @@ class VkDecoderGlobalState::Impl {
             }
         }
     }
+
+    std::atomic<uint64_t> mNextHostBlobId{1};
 
     // Info tracking for vulkan objects
     std::unordered_map<VkInstance, InstanceInfo> mInstanceInfo GUARDED_BY(mMutex);
