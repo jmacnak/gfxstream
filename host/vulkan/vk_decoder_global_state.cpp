@@ -872,6 +872,11 @@ class VkDecoderGlobalState::Impl {
 
         mSnapshotState = SnapshotState::Normal;
         GFXSTREAM_DEBUG("VulkanSnapshots save (end)");
+        if (stream && stream->hasErrors()) {
+            GFXSTREAM_ERROR("VulkanSnapshots save failed due to stream errors: %s",
+                            stream->getErrors().value_or("unknown error").c_str());
+            return false;
+        }
         return true;
     }
 
@@ -1248,6 +1253,11 @@ class VkDecoderGlobalState::Impl {
             mSnapshotState = SnapshotState::Normal;
         }
         GFXSTREAM_DEBUG("VulkanSnapshots load (end)");
+        if (stream && stream->hasErrors()) {
+            GFXSTREAM_ERROR("VulkanSnapshots load failed due to stream errors: %s",
+                            stream->getErrors().value_or("unknown error").c_str());
+            return false;
+        }
         return true;
     }
 

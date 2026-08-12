@@ -1132,7 +1132,7 @@ bool ColorBufferGl::readbackAsync(GLuint buffer, bool readbackBgra) {
 
 HandleType ColorBufferGl::getHndl() const { return mHndl; }
 
-void ColorBufferGl::onSave(gfxstream::Stream* stream) {
+bool ColorBufferGl::onSave(gfxstream::Stream* stream) {
     stream->putBe32(getHndl());
     stream->putBe32(static_cast<uint32_t>(m_width));
     stream->putBe32(static_cast<uint32_t>(m_height));
@@ -1142,6 +1142,13 @@ void ColorBufferGl::onSave(gfxstream::Stream* stream) {
     stream->putBe32(reinterpret_cast<uintptr_t>(m_eglImage));
     stream->putBe32(reinterpret_cast<uintptr_t>(m_blitEGLImage));
     stream->putBe32(m_needFormatCheck);
+
+    if (stream->hasErrors()) {
+        GFXSTREAM_ERROR("ColorBufferGl::onSave failed with errors: %s",
+                        stream->getErrors().value_or("unknown error").c_str());
+        return false;
+    }
+    return true;
 }
 
 std::unique_ptr<ColorBufferGl> ColorBufferGl::onLoad(gfxstream::Stream* stream,
