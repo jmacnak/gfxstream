@@ -3241,14 +3241,22 @@ bool FrameBuffer::Impl::onSave(Stream* stream,
         }
         GFXSTREAM_DEBUG("snapshot save: save %zu color buffers", colorBufferCount);
         stream->putByte(m_guestManagedColorBufferLifetime);
-        saveCollection(stream, m_colorbuffers, [now](Stream* s, const auto& pair) {
-            auto cb = pair.second.cb;
-            assert(cb);
-            cb->onSave(s);
-            s->putBe32(pair.second.refcount);
-            s->putByte(pair.second.opened);
-            s->putBe32(std::max<uint64_t>(0, now - pair.second.closedTs));
-        });
+        bool colorBuffersSaved =
+            trySaveCollection(stream, m_colorbuffers, kNumMaxColorBuffers,
+                              [now](Stream* s, const auto& pair) {
+                                  if (!pair.second.cb->onSave(s)) {
+                                      return false;
+                                  }
+                                  s->putBe32(pair.second.refcount);
+                                  s->putByte(pair.second.opened);
+                                  s->putBe32(std::max<uint64_t>(0, now - pair.second.closedTs));
+                                  return true;
+                              });
+
+        if (!colorBuffersSaved) {
+            GFXSTREAM_ERROR("snapshot save: could not save %zu color buffers", colorBufferCount);
+            return false;
+        }
     }
     stream->putBe32(m_lastPostedColorBuffer);
 #if GFXSTREAM_ENABLE_HOST_GLES
@@ -3305,6 +3313,11 @@ bool FrameBuffer::Impl::onSave(Stream* stream,
 
     // Finish with a magic number to be able to verify load later on.
     stream->putBe32(kFramebufferSnapshotMagicNumber);
+
+    if (stream->hasErrors()) {
+        GFXSTREAM_ERROR("snapshot save: stream has errors: %s", stream->getErrors().value_or("unknown error").c_str());
+        return false;
+    }
 
     return true;
 }
@@ -3606,6 +3619,11 @@ bool FrameBuffer::Impl::onLoad(Stream* stream,
     if (magicNumberLoaded != kFramebufferSnapshotMagicNumber) {
         GFXSTREAM_ERROR("%s:%d - framebuffer snapshot magic number mismatch: 0x%x", __func__,
                         __LINE__, magicNumberLoaded);
+        return false;
+    }
+
+    if (stream->hasErrors()) {
+        GFXSTREAM_ERROR("%s:%d - stream has errors: %s", __func__, __LINE__, stream->getErrors().value_or("unknown error").c_str());
         return false;
     }
 
