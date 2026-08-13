@@ -363,8 +363,14 @@ void VirtioGpuResource::AttachToContext(VirtioGpuContextId contextId) {
 
 void VirtioGpuResource::DetachFromContext(VirtioGpuContextId contextId) {
     mAttachedToContexts.erase(contextId);
-    mLatestAttachedContext.reset();
-    mHostPipe = nullptr;
+    if (mLatestAttachedContext == contextId) {
+        if (mAttachedToContexts.empty()) {
+            mLatestAttachedContext.reset();
+        } else {
+            mLatestAttachedContext = *mAttachedToContexts.begin();
+        }
+        mHostPipe = nullptr;
+    }
 }
 
 std::unordered_set<VirtioGpuContextId> VirtioGpuResource::GetAttachedContexts() const {
