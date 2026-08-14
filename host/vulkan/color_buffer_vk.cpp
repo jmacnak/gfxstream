@@ -57,6 +57,9 @@ bool ColorBufferVk::onLoad(gfxstream::Stream* stream, LoadImageBehavior behavior
                 size, ret);
             return false;
         }
+    } else {
+        // Clear pixels as this path is also used for color buffers with all-zero values
+        mVkEmulation.clearColorBuffer(mHandle);
     }
 
     if (stream->hasErrors()) {
@@ -78,7 +81,22 @@ bool ColorBufferVk::onSave(gfxstream::Stream* stream, SaveImageBehavior behavior
     }
 
     std::vector<uint8_t> pixels;
-    if (readToBytes(&pixels)) {
+    bool writePixels = readToBytes(&pixels);
+
+    // To save storage and optimize for faster a load, check the pixel values
+    // and don't write them into the snapshot if they are all zeros.
+    if (writePixels) {
+        const bool all_zero =
+            std::all_of(pixels.begin(), pixels.end(), [](uint8_t pixel) { return pixel == 0; });
+        if (all_zero) {
+            GFXSTREAM_DEBUG(
+                "snapshot save: skipping %zu pixel bytes for color buffer %u - zero color save",
+                pixels.size(), mHandle);
+            writePixels = false;
+        }
+    }
+
+    if (writePixels) {
         GFXSTREAM_DEBUG("snapshot save: color buffer %u size=%zu", mHandle, pixels.size());
         uint64_t size = pixels.size();
         stream->putBe64(size);

@@ -4312,6 +4312,34 @@ bool VkEmulation::updateColorBufferFromBytes(uint32_t colorBufferHandle, uint32_
     return updateColorBufferFromBytesLocked(colorBufferHandle, x, y, w, h, pixels, 0);
 }
 
+bool VkEmulation::clearColorBuffer(uint32_t colorBufferHandle) {
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    // TODO(b/546537675): optimize this by using vkCmdClearColorImage/vkCmdClearDepthStencilImage
+    // and support different clear colors for fixed color color buffers in the snapshot
+    auto colorBufferInfo = gfxstream::base::find(mColorBuffers, colorBufferHandle);
+    if (!colorBufferInfo) {
+        GFXSTREAM_ERROR("Failed to update ColorBuffer:%d, not found.", colorBufferHandle);
+        return false;
+    }
+
+    // Get TransferInfo to determine the size of the staging buffer and unpack function
+    const VkFormat creationFormat = colorBufferInfo->imageCreateInfoShallow.format;
+    TransferInfo transferInfo;
+    if (!getFormatTransferInfo(creationFormat, colorBufferInfo->imageCreateInfoShallow.extent,
+                               &transferInfo)) {
+        GFXSTREAM_ERROR("Failed to clear ColorBuffer:%d, unable to get transfer info.",
+                        colorBufferHandle);
+        return false;
+    }
+
+    VkDeviceSize dstBufferSize = transferInfo.stagingBufferCopySize;
+    const std::vector<uint8_t> clearData(dstBufferSize, 0);
+    return updateColorBufferFromBytesLocked(
+        colorBufferHandle, 0, 0, colorBufferInfo->imageCreateInfoShallow.extent.width,
+        colorBufferInfo->imageCreateInfoShallow.extent.height, clearData.data(), clearData.size());
+}
+
 static void convertRgbToRgbaPixels(void* dst, const void* src, uint32_t w, uint32_t h) {
     const size_t pixelCount = w * h;
     const uint8_t* srcBytes = reinterpret_cast<const uint8_t*>(src);
@@ -4341,6 +4369,7 @@ static void convertRgba4ToBGRA4Pixels(void* dst, const void* src, uint32_t w, ui
 bool VkEmulation::updateColorBufferFromBytesLocked(uint32_t colorBufferHandle, uint32_t x,
                                                    uint32_t y, uint32_t w, uint32_t h,
                                                    const void* pixels, size_t inputPixelsSize) {
+    // TODO(b/546537675): optimize this by using VK_EXT_host_image_copy
     auto vk = mDvk;
 
     auto colorBufferInfo = gfxstream::base::find(mColorBuffers, colorBufferHandle);
