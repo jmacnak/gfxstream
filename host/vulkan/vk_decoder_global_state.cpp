@@ -6068,31 +6068,42 @@ class VkDecoderGlobalState::Impl {
         }
     }
 
-    inline void convertQueueFamilyForeignToExternal(uint32_t* queueFamilyIndexPtr) {
-        if (*queueFamilyIndexPtr == VK_QUEUE_FAMILY_FOREIGN_EXT) {
-            *queueFamilyIndexPtr = VK_QUEUE_FAMILY_EXTERNAL;
+    void ConvertQueueFamilyForeignToExternal(uint32_t* queue_family_index_ptr) {
+        if (*queue_family_index_ptr == VK_QUEUE_FAMILY_FOREIGN_EXT) {
+            *queue_family_index_ptr = VK_QUEUE_FAMILY_EXTERNAL;
+        }
+    }
+
+    void ConvertQueueFamilyIgnored(uint32_t* src_queue_family_index_ptr, uint32_t* dst_queue_family_index_ptr) {
+        if (*src_queue_family_index_ptr == *dst_queue_family_index_ptr) {
+            *src_queue_family_index_ptr = VK_QUEUE_FAMILY_IGNORED;
+            *dst_queue_family_index_ptr = VK_QUEUE_FAMILY_IGNORED;
         }
     }
 
     void convertQueueFamilyForeignToExternal_VkBufferMemoryBarrier(
         VkBufferMemoryBarrier& barrier) {
-        convertQueueFamilyForeignToExternal(&barrier.srcQueueFamilyIndex);
-        convertQueueFamilyForeignToExternal(&barrier.dstQueueFamilyIndex);
+        ConvertQueueFamilyForeignToExternal(&barrier.srcQueueFamilyIndex);
+        ConvertQueueFamilyForeignToExternal(&barrier.dstQueueFamilyIndex);
+        ConvertQueueFamilyIgnored(&barrier.srcQueueFamilyIndex, &barrier.dstQueueFamilyIndex);
     }
     void convertQueueFamilyForeignToExternal_VkImageMemoryBarrier(
         VkImageMemoryBarrier& barrier) {
-        convertQueueFamilyForeignToExternal(&barrier.srcQueueFamilyIndex);
-        convertQueueFamilyForeignToExternal(&barrier.dstQueueFamilyIndex);
+        ConvertQueueFamilyForeignToExternal(&barrier.srcQueueFamilyIndex);
+        ConvertQueueFamilyForeignToExternal(&barrier.dstQueueFamilyIndex);
+        ConvertQueueFamilyIgnored(&barrier.srcQueueFamilyIndex, &barrier.dstQueueFamilyIndex);
     }
     void convertQueueFamilyForeignToExternal_VkBufferMemoryBarrier2(
         VkBufferMemoryBarrier2& barrier) {
-        convertQueueFamilyForeignToExternal(&barrier.srcQueueFamilyIndex);
-        convertQueueFamilyForeignToExternal(&barrier.dstQueueFamilyIndex);
+        ConvertQueueFamilyForeignToExternal(&barrier.srcQueueFamilyIndex);
+        ConvertQueueFamilyForeignToExternal(&barrier.dstQueueFamilyIndex);
+        ConvertQueueFamilyIgnored(&barrier.srcQueueFamilyIndex, &barrier.dstQueueFamilyIndex);
     }
     void convertQueueFamilyForeignToExternal_VkImageMemoryBarrier2(
         VkImageMemoryBarrier2& barrier) {
-        convertQueueFamilyForeignToExternal(&barrier.srcQueueFamilyIndex);
-        convertQueueFamilyForeignToExternal(&barrier.dstQueueFamilyIndex);
+        ConvertQueueFamilyForeignToExternal(&barrier.srcQueueFamilyIndex);
+        ConvertQueueFamilyForeignToExternal(&barrier.dstQueueFamilyIndex);
+        ConvertQueueFamilyIgnored(&barrier.srcQueueFamilyIndex, &barrier.dstQueueFamilyIndex);
     }
 
     inline VkImage getIMBImage(const VkImageMemoryBarrier& imb) { return imb.image; }
