@@ -800,6 +800,7 @@ class VkEmulation {
     std::vector<std::tuple<VkCommandBuffer, VkFence>> mTransferQueueCommandBufferPool GUARDED_BY(mMutex);
 
     std::unique_ptr<CompositorVk> mCompositorVk;
+    std::atomic<bool> mGpuScaledReadbackFailed = false;
 
     // The implementation for Vulkan native swapchain. Only initialized in initVkEmulationFeatures
     // if useVulkanNativeSwapchain is set.
