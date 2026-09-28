@@ -235,16 +235,6 @@ class VkDecoderGlobalState {
         VkPhysicalDevice physicalDevice, const VkPhysicalDeviceSparseImageFormatInfo2* pFormatInfo,
         uint32_t* pPropertyCount, VkSparseImageFormatProperties2* pProperties);
 
-    void on_vkGetDeviceImageMemoryRequirements(gfxstream::base::BumpPool* pool,
-                                               VkSnapshotApiCallHandle apiCallHandle, VkDevice device,
-                                               const VkDeviceImageMemoryRequirements* pInfo,
-                                               VkMemoryRequirements2* pMemoryRequirements);
-    void on_vkGetDeviceImageMemoryRequirementsKHR(gfxstream::base::BumpPool* pool,
-                                                  VkSnapshotApiCallHandle apiCallHandle,
-                                                  VkDevice device,
-                                                  const VkDeviceImageMemoryRequirements* pInfo,
-                                                  VkMemoryRequirements2* pMemoryRequirements);
-
     void on_vkGetDeviceBufferMemoryRequirements(gfxstream::base::BumpPool* pool,
                                                 VkSnapshotApiCallHandle apiCallHandle,
                                                 VkDevice device,
@@ -255,6 +245,16 @@ class VkDecoderGlobalState {
                                                    VkDevice device,
                                                    const VkDeviceBufferMemoryRequirements* pInfo,
                                                    VkMemoryRequirements2* pMemoryRequirements);
+
+    void on_vkGetDeviceImageMemoryRequirements(gfxstream::base::BumpPool* pool,
+                                               VkSnapshotApiCallHandle apiCallHandle, VkDevice device,
+                                               const VkDeviceImageMemoryRequirements* pInfo,
+                                               VkMemoryRequirements2* pMemoryRequirements);
+    void on_vkGetDeviceImageMemoryRequirementsKHR(gfxstream::base::BumpPool* pool,
+                                                  VkSnapshotApiCallHandle apiCallHandle,
+                                                  VkDevice device,
+                                                  const VkDeviceImageMemoryRequirements* pInfo,
+                                                  VkMemoryRequirements2* pMemoryRequirements);
 
     void on_vkDestroyDevice(gfxstream::base::BumpPool* pool, VkSnapshotApiCallHandle apiCallHandle,
                             VkDevice device, const VkAllocationCallbacks* pAllocator);
