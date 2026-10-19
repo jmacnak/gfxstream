@@ -32,4 +32,4 @@ target_compile_definitions(
     gfxstream_common_build_info
     PRIVATE
     GFXSTREAM_BUILD_INFO_USE_CUSTOM_STRING=1
-    GFXSTREAM_BUILD_INFO_CUSTOM_STRING_VALUE="\"CMake Build\"")
+    "GFXSTREAM_BUILD_INFO_CUSTOM_STRING_VALUE=\"CMake Build\"")
