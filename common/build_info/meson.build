@@ -13,6 +13,6 @@ lib_common_build_info = static_library(
   include_directories: [inc_common_build_info],
   cpp_args: [
     '-DGFXSTREAM_BUILD_INFO_USE_CUSTOM_STRING=1',
-    '-DGFXSTREAM_BUILD_INFO_CUSTOM_STRING_VALUE="\"Meson Build\""',
+    '-DGFXSTREAM_BUILD_INFO_CUSTOM_STRING_VALUE="Meson Build"',
   ]
 )

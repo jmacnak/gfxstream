@@ -3566,7 +3566,8 @@ bool FrameBuffer::Impl::onLoad(Stream* stream,
         m_guestManagedColorBufferLifetime = stream->getByte();
         bool colorBuffersLoaded = tryLoadCollection(
             stream, &m_colorbuffers, kNumMaxColorBuffers,
-            [this, now](Stream* stream) -> std::optional<ColorBufferMap::value_type> {
+            [this, now](Stream* stream)
+                -> std::optional<std::pair<HandleType, ReferenceCountedColorBuffer>> {
                 ColorBufferPtr cb =
                     ColorBuffer::onLoad(m_emulationGl.get(), m_emulationVk.get(), stream);
                 if (!cb) {
