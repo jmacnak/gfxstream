@@ -196,7 +196,7 @@ static bool isDescriptorTypeBufferView(VkDescriptorType descType) {
            (descType == VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER);
 }
 
-static DescriptorUpdateTemplateInfo calcLinearizedDescriptorUpdateTemplateInfo(
+DescriptorUpdateTemplateInfo calcLinearizedDescriptorUpdateTemplateInfo(
     const VkDescriptorUpdateTemplateCreateInfo* pCreateInfo) {
     DescriptorUpdateTemplateInfo res;
     res.createInfo = *pCreateInfo;

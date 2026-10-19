@@ -516,6 +516,9 @@ struct DescriptorUpdateTemplateInfo {
     uint32_t inlineUniformBlockCount = 0;
 };
 
+DescriptorUpdateTemplateInfo calcLinearizedDescriptorUpdateTemplateInfo(
+    const VkDescriptorUpdateTemplateCreateInfo* pCreateInfo);
+
 struct DescriptorPoolInfo {
     VkDevice device = 0;
     VkDescriptorPool boxed = 0;

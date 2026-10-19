@@ -353,18 +353,13 @@ cc_test(
 )
 
 cc_test(
-    name = "gfxstream_vk_decoder_global_state_tests",
+    name = "gfxstream_vk_decoder_internal_structs_tests",
     srcs = [
-        "vk_decoder_global_state_unittest.cpp",
-    ],
-    additional_compiler_inputs = [
-        "vk_decoder_global_state.cpp",
+        "vk_decoder_internal_structs_tests.cpp",
     ],
     copts = GFXSTREAM_HOST_COPTS,
-    features = ["-layering_check"],
     deps = [
         ":gfxstream_vulkan_server",
-        ":gfxstream_vulkan_server_headers",
         "//common/base:gfxstream_common_base",
         "//common/base:gfxstream_common_base_testing",
         "//host:gfxstream_backend_static",
