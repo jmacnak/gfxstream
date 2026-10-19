@@ -12,7 +12,7 @@
 // see the license for the specific language governing permissions and
 // limitations under the license.
 
-#include "vk_decoder_global_state.cpp"
+#include "vk_decoder_internal_structs.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -30,7 +30,7 @@ using ::testing::Return;
 using ::testing::Test;
 using ::testing::UnorderedElementsAre;
 
-class VkDecoderGlobalStateExternalFenceTest : public Test {
+class ExternalFencePoolTest : public Test {
 protected:
     class MockDispatch {
        public:
@@ -41,10 +41,10 @@ protected:
                     ());
     };
 
-    VkDecoderGlobalStateExternalFenceTest()
+    ExternalFencePoolTest()
         : mDevice(reinterpret_cast<VkDevice>(0x2222'0000)), mPool(&mMockDispatch, mDevice) {}
 
-    ~VkDecoderGlobalStateExternalFenceTest() {
+    ~ExternalFencePoolTest() {
         mPool.popAll();
     }
 
@@ -53,9 +53,9 @@ protected:
     ExternalFencePool<MockDispatch> mPool;
 };
 
-using VkDecoderGlobalStateExternalFenceDeathTest = VkDecoderGlobalStateExternalFenceTest;
+using ExternalFencePoolDeathTest = ExternalFencePoolTest;
 
-TEST_F(VkDecoderGlobalStateExternalFenceTest, poolNoDeviceFences) {
+TEST_F(ExternalFencePoolTest, poolNoDeviceFences) {
     VkFenceCreateInfo createInfo{
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .pNext = 0,
@@ -64,7 +64,7 @@ TEST_F(VkDecoderGlobalStateExternalFenceTest, poolNoDeviceFences) {
     ASSERT_EQ(VK_NULL_HANDLE, mPool.pop(&createInfo));
 }
 
-TEST_F(VkDecoderGlobalStateExternalFenceTest, poolReuseSignalledFence) {
+TEST_F(ExternalFencePoolTest, poolReuseSignalledFence) {
     {
         InSequence s;
         EXPECT_CALL(mMockDispatch, vkGetFenceStatus(_, _)).WillOnce(Return(VK_SUCCESS));
@@ -83,7 +83,7 @@ TEST_F(VkDecoderGlobalStateExternalFenceTest, poolReuseSignalledFence) {
     ASSERT_EQ(fence, reusedFence);
 }
 
-TEST_F(VkDecoderGlobalStateExternalFenceTest, poolReuseSignalledFenceAsSignaled) {
+TEST_F(ExternalFencePoolTest, poolReuseSignalledFenceAsSignaled) {
     {
         InSequence s;
         EXPECT_CALL(mMockDispatch, vkGetFenceStatus(_, _)).WillOnce(Return(VK_SUCCESS));
@@ -102,7 +102,7 @@ TEST_F(VkDecoderGlobalStateExternalFenceTest, poolReuseSignalledFenceAsSignaled)
     ASSERT_EQ(fence, reusedFence);
 }
 
-TEST_F(VkDecoderGlobalStateExternalFenceTest, poolUnsignalledFence) {
+TEST_F(ExternalFencePoolTest, poolUnsignalledFence) {
     {
         InSequence s;
         EXPECT_CALL(mMockDispatch, vkGetFenceStatus(_, _)).WillOnce(Return(VK_NOT_READY));
@@ -120,7 +120,7 @@ TEST_F(VkDecoderGlobalStateExternalFenceTest, poolUnsignalledFence) {
     ASSERT_EQ(VK_NULL_HANDLE, mPool.pop(&createInfo));
 }
 
-TEST_F(VkDecoderGlobalStateExternalFenceTest, poolPopAll) {
+TEST_F(ExternalFencePoolTest, poolPopAll) {
     VkFence fence1 = reinterpret_cast<VkFence>(0x1234'0000);
     VkFence fence2 = reinterpret_cast<VkFence>(0x2234'0000);
     VkFence fence3 = reinterpret_cast<VkFence>(0x3234'0000);
@@ -132,7 +132,7 @@ TEST_F(VkDecoderGlobalStateExternalFenceTest, poolPopAll) {
     ASSERT_THAT(result, UnorderedElementsAre(fence1, fence2, fence3));
 }
 
-TEST_F(VkDecoderGlobalStateExternalFenceDeathTest, undestroyedFences) {
+TEST_F(ExternalFencePoolDeathTest, undestroyedFences) {
     ASSERT_DEATH(
         {
             ExternalFencePool<MockDispatch> pool(&mMockDispatch, mDevice);
